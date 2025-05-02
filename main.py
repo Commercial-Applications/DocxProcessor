@@ -1,4 +1,4 @@
-# Will modify Embedded URL's that match HTTPS? pattern with the return value of modify_function
+# Proof of concept
 
 import logging
 from docx import Document
