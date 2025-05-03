@@ -1,6 +1,9 @@
 # Proof of concept
 
 import logging
+import sys
+from CustomFormatter import CustomFormatter
+
 from docx import Document
 from docx.opc.constants import RELATIONSHIP_TYPE as RT
 import re
@@ -11,13 +14,23 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
         logging.FileHandler(r"C:\Users\SeanSmith\Downloads\log\url_modification.log", encoding='utf-8'),
-        logging.StreamHandler()
+#        logging.StreamHandler()
     ]
 )
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+ch = logging.StreamHandler(sys.stdout)
+ch.setLevel(logging.DEBUG)
+ch.setFormatter(CustomFormatter())
+
+logger.addHandler(ch)
+
+
 # Utility to process headers
 def process_section(name, element, modify_func, url_pattern):
-    logging.info(f"Processing section: {name}")
+    logger.debug(f"Processing section: {name}")
 
     for para_idx, para in enumerate(element.paragraphs):
         for hyperlink_idx, hyperlink in enumerate(para.hyperlinks):
@@ -25,7 +38,7 @@ def process_section(name, element, modify_func, url_pattern):
                 if run.text and url_pattern.search(run.text):
                     original: str = run.text
                     new_url: str = modify_func(original)
-                    logging.info(f"{name} Link-Text {para_idx}, Run {run_idx}: {original} → {new_url}")
+                    logger.info(f"{name} Link-Text {para_idx}, Run {run_idx}: {original} → {new_url}")
                     run.clear()
                     run.add_text(new_url)
 
@@ -35,13 +48,13 @@ def process_section(name, element, modify_func, url_pattern):
             if url_pattern.search(rel.target_ref):
                 original = rel.target_ref
                 new_target = modify_func(original)
-                logging.info(f"{name} URL: {original} → {new_target}")
+                logger.info(f"{name} URL: {original} → {new_target}")
                 rel._target = new_target
 
 # Modify URL and Save
-def modify_urls_in_docx(file_path, output_path, modify_func):
-    logging.info(f"Starting URL modification for: {file_path}")
-    doc = Document(file_path)
+def modify_urls_in_docx(doc,file_path, modify_func):
+    logger.debug(f"Starting URL modification for: {file_path}")
+
     url_pattern = re.compile(r'https?://[^\s)]+', re.IGNORECASE)
 
     # Body text
@@ -51,10 +64,6 @@ def modify_urls_in_docx(file_path, output_path, modify_func):
     for idx, section in enumerate(doc.sections):
         process_section(f"Header {idx}", section.header, modify_func, url_pattern)
         process_section(f"Footer {idx}", section.footer, modify_func, url_pattern)
-
-    # Save modified document
-    doc.save(output_path)
-    logging.info(f"Document saved: {output_path}")
 
 # Run
 def process_all_docx(input_dir, output_dir):
@@ -75,16 +84,34 @@ def process_all_docx(input_dir, output_dir):
 
             # Process file - Corrup Files logged as error
             try:
-                modify_urls_in_docx(input_path, output_path, url_replace_regex)
-            except Exception as e:
-                logging.error(f"Failed to process {input_path}: {e}")
+                doc = Document(input_path)
+                # URLS
+                modify_urls_in_docx(doc, output_path, url_replace_regex)
 
-# Regex Replace function
+                # Style Names
+                change_style_name(doc, 'Glencore1', 'gm3-standard-table')
+
+                # Save modified document
+                doc.save(output_path)
+                logger.debug(f"Document saved: {output_path}")
+            except Exception as e:
+                logger.error(f"Failed to process {input_path}: {e}")
+
+# Utility - Regex Replace function
 # input: original URL
-# outpup: converted url
+# output: converted url
 def url_replace_regex(original_url):
     replace_rgx = r'((?:www.)?south32.net)'
     with_rgx = r'gm3.au'
     return re.sub(replace_rgx, with_rgx, original_url, flags=re.IGNORECASE)
+
+def change_style_name(doc, old_style, new_style):
+    found_style = False
+    for inx, style in enumerate(doc.styles):
+        if style.name == old_style:
+            style.name = new_style
+            found_style = True
+    if found_style:
+        logger.info(f"Table Style {old_style} Found.. Converting, {old_style} → {new_style}")
 
 process_all_docx(r"C:\Users\SeanSmith\Downloads\pre", r"C:\Users\SeanSmith\Downloads\post")
