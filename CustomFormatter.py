@@ -1,6 +1,4 @@
 import logging
-from zoneinfo import reset_tzpath
-
 
 class CustomFormatter(logging.Formatter):
 
