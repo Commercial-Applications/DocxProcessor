@@ -18,4 +18,5 @@ Works with the document xml so does not require word to be opened for each file.
 * Tables (This is possible)
 
 ## Note:
-There are some edge cases that may cause issues. For Example when the url spans pages 
+There are some edge cases that may cause issues.
+Works only on current word .docx (xml) not .doc

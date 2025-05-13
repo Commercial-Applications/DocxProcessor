@@ -7,7 +7,10 @@ from typing import Optional
 class Config:
     source_dir: Path
     destination_dir: Path
-    url_pattern: str
+    debug_level: str
+    find_regex: str
+    from_regex: str
+    to_regex_replace: str
     style_mappings: dict[str, str]
     log_file: Optional[Path] = None
 
@@ -19,7 +22,10 @@ class Config:
         return cls(
             source_dir=Path(config['DEFAULT']['source_dir']),
             destination_dir=Path(config['DEFAULT']['destination_dir']),
-            url_pattern=config['url_translate']['from'],
+            debug_level=config['DEFAULT']['debug_level'],
+            find_regex=config['url_translate']['find_regex'],
+            from_regex=config['url_translate']['from_regex'],
+            to_regex_replace=config['url_translate']['to_regex_replace'],
             style_mappings={
                 config['style_translate']['from']: config['style_translate']['to']
             },

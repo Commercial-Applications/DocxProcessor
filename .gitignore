@@ -1,6 +1,5 @@
 /.venv/
 /url_modification.log
-/tests/
 
 # If you are using PyCharm #
 .idea/**/workspace.xml
@@ -16,3 +15,5 @@
 .idea/**/gradle.xml
 .idea/**/libraries
 *.iws /out/
+/word_docx_morph.log
+/docs/
