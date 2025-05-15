@@ -1,38 +1,13 @@
-# Proof of concept
-import logging
-
 from docx import Document
 from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from pathlib import Path
 from typing import Callable
-from config import Config
-from logger import DocxLogger, ContextLoggerAdapter
+from docx_processor.config import Config
+from docx_processor.utils import non_rel_hyperlinks
 import re
 
-import zipfile
-from lxml import etree
 
-def non_rel_hyperlinks(logger, file_path: Path) -> None:
-    # Logs as an Error
-    with zipfile.ZipFile(file_path) as docx:
-        xml_content = docx.read('word/document.xml')
-    tree = etree.fromstring(xml_content)
-    # Namespaces
-    ns = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
-
-    # Find all field code runs
-    instr_texts = tree.xpath('//w:instrText', namespaces=ns)
-
-    for instr in instr_texts:
-        if instr.text and 'HYPERLINK' in instr.text:
-            # Extract the URL inside the HYPERLINK field code
-            parts = instr.text.split('"')
-            if len(parts) >= 2:
-                logger.extra['section'] = 'XML'
-                logger.error(f"Non-Rel URL: {parts[1]}")  # URL is typically the first quoted string
-
-
-class DocxProcessor:
+class DocumentProcessor:
     def __init__(self, config: Config, logger):
         self.config = config
         self.logger = logger
@@ -135,23 +110,3 @@ class DocxProcessor:
             output_path.parent.mkdir(parents=True, exist_ok=True)
 
             self.process_document(input_path, output_path)
-
-def main():
-    # Load configuration
-    config = Config.from_file('word_docx_morph.ini')
-    config.validate()
-
-    # Initialize Custom logger
-    cust_logger = DocxLogger(config.log_file,logging.DEBUG)
-
-    # Initialize Logger with Adapter
-    logger = ContextLoggerAdapter(
-        cust_logger.logger,
-  {}  # Default section
-    )
-    # Process documents
-    processor = DocxProcessor(config, logger)
-    processor.process_all_docx()
-
-if __name__ == "__main__":
-    main()

@@ -2,7 +2,7 @@ import logging
 import sys
 from pathlib import Path
 from typing import Optional
-from CustomFormatter import CustomFormatter
+from custom_formatter import CustomFormatter
 
 class DocxLogger:
     def __init__(self, log_file: Optional[Path] = None, level: int = logging.DEBUG):
