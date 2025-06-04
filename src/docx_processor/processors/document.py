@@ -2,16 +2,15 @@ from docx import Document
 from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from pathlib import Path
 from typing import Callable
-from docx_processor.config import Config
 from docx_processor.utils import non_rel_hyperlinks
 import re
 
 
 class DocumentProcessor:
-    def __init__(self, config: Config, logger):
+    def __init__(self, config, logger):
         self.config = config
         self.logger = logger
-        self.url_pattern = re.compile(self.config.find_regex, re.IGNORECASE)
+        self.url_pattern = re.compile(self.config.transform.url_transforms[0].from_pattern, re.IGNORECASE)
 
     def rel_hyperlinks(self, element: Document, modify_func: Callable[[str], str]) -> None:
         """Process a section of the document for URL modifications."""
@@ -20,6 +19,8 @@ class DocumentProcessor:
             for rel_id, rel in element.part.rels.items():
                 if rel.reltype == RT.HYPERLINK:
                     original_url = rel.target_ref
+
+# TODO: This is redundant just replace it only will replace matches and it searches first
                     if self.url_pattern.search(original_url):
                         new_url = modify_func(original_url)
                         self.logger.debug(f"{rel.target_ref} -> {new_url}")
@@ -54,8 +55,8 @@ class DocumentProcessor:
     def url_replace_regex(self, original_url: str) -> str:
         """Replace URLs according to the configured pattern."""
         return re.sub(
-            self.config.from_regex,
-            self.config.to_regex_replace,
+            self.config.transform.url_transforms[0].from_pattern,
+            self.config.transform.url_transforms[0].to_pattern,
             original_url,
             flags=re.IGNORECASE
         )
@@ -63,7 +64,7 @@ class DocumentProcessor:
     def change_style_name(self, doc: Document, input_path) -> None:
         """Change style names according to configuration."""
         self.logger.debug(f"Starting Style modification")
-        for old_style, new_style in self.config.style_mappings.items():
+        for old_style, new_style in self.config.transform.style_transforms[0]:
             for style in doc.styles:
                 if style.name == old_style:
                     style.name = new_style
@@ -82,13 +83,10 @@ class DocumentProcessor:
             self.logger.extra['task'] = 'URLS'
             non_rel_hyperlinks(self.logger,input_path)
 
-            # Modify Relationship URLS
-            self.logger.extra['task'] = 'URLS'
-            self.modify_urls_in_docx(doc, input_path)
-
-            # Rename Styles
-            self.logger.extra['task'] = 'STYLE'
-            self.change_style_name(doc, input_path)
+            if self.config.runtime.find_only:
+                # Modify Relationship URLS
+                self.logger.extra['task'] = 'URLS'
+                self.modify_urls_in_docx(doc, input_path)
 
             # Save The Document
             doc.save(str(output_path))
@@ -97,16 +95,3 @@ class DocumentProcessor:
         except Exception as e:
             self.logger.exception(f"Failed to process {input_path} with error: {e}")
 
-    def process_all_docx(self) -> None:
-        """Process all documents in the source directory."""
-        for input_path in self.config.source_dir.rglob("*.docx"):
-            if input_path.name.startswith("~$"):  # Skip temporary Word files
-                continue
-
-            relative_path = input_path.relative_to(self.config.source_dir)
-            output_path = self.config.destination_dir / relative_path
-
-            # Ensure destination directory exists
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-
-            self.process_document(input_path, output_path)

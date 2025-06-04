@@ -2,7 +2,7 @@ import logging
 import sys
 from pathlib import Path
 from typing import Optional
-from custom_formatter import CustomFormatter
+from .custom_formatter import CustomFormatter
 
 class DocxLogger:
     def __init__(self, log_file: Optional[Path] = None, level: int = logging.DEBUG):
@@ -24,7 +24,14 @@ class DocxLogger:
             file_handler = logging.FileHandler(log_file, encoding='utf-8')
             file_handler.setFormatter(logging.Formatter("%(asctime)s,%(levelname)s,%(message)s", datefmt="%Y-%m-%d %H:%M:%S"))
             self.logger.addHandler(file_handler)
-    
+
+        @property
+        def logger(self):
+            return self._logger
+
+    def isEnabledFor(self, level: int) -> bool:
+        return self.logger.isEnabledFor(level)
+
     def debug(self, message: str) -> None:
         self.logger.debug(message)
     
@@ -40,13 +47,5 @@ class DocxLogger:
     def exception(self, message: str) -> None:
         self.logger.exception(message)
 
-class ContextLoggerAdapter(logging.LoggerAdapter):
-    def process(self, msg, kwargs):
-        ctx = self.extra
-        return (
-            f"{ctx.get('document_full_path', 'unknown')},"
-            f"{ctx.get('document_name', 'unknown')},"
-            f"{ctx.get('section', 'unknown')},"
-            f"{ctx.get('task', 'unknown')},"
-            f"{msg}", kwargs
-        )
+    def log(self, level: int, msg: str, *args, **kwargs) -> None:
+        self.logger.log(level, msg, *args, **kwargs)

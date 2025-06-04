@@ -1,0 +1,16 @@
+# transforms.yaml
+url_transforms:
+  - from: "((?:www\\.)?south32\\.net)"
+    to: "gm3\\.au"
+  - from: ".*/s[sS]outh32/s.*"
+    to: "GM3"
+
+text_transforms:
+  - from: "Company Name Ltd\\."
+    to: "Company Name Limited"
+  - from: "(?i)Department of\\s+(.*?)"
+    to: "Dept. of $1"
+
+style_transforms:
+  - from: "Glencore"
+    to: "GM3"
