@@ -23,6 +23,13 @@ def setup_logger(config):
         level=LOG_LEVEL_MAP[config.runtime.log_level]
     )
 
-    return ContextLoggerAdapter(logger, {'document_name': '', 'document_full_path': '', 'section': '', 'task': ''})
+    return ContextLoggerAdapter(logger, {
+        'document_name': '',
+        'document_full_path': '',
+        'section': '',
+        'module': '',
+        'location': 'No Heading',
+        'match': 'False'
+    })
 
 __all__ = ['DocxLogger', 'setup_logger', 'ContextLoggerAdapter', 'CustomFormatter']

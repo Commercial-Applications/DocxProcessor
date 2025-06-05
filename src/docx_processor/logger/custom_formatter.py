@@ -22,6 +22,9 @@ class CustomFormatter(logging.Formatter):
     }
 
     def format(self, record):
+        if not hasattr(record, 'location'):
+            record.location = 'No Heading'
+
         log_fmt = self.FORMATS.get(record.levelno)
         formatter = logging.Formatter(log_fmt, datefmt=self.DATE_FORMAT)
         return formatter.format(record)

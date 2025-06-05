@@ -164,36 +164,16 @@ def validate(ctx: click.Context):
   click.echo(f"  Workers: {config.runtime.workers}")
   click.echo(f"  Operation: {'find-only' if config.runtime.find_only else 'modify'}")
   click.echo("\nURL patterns:")
-  for transform in config.transform.url_transforms:
-    click.echo(f"from: {transform.from_pattern} → to: {transform.to_pattern}")
+  for url in config.transform.url_transforms:
+    click.echo(f"from: {url.from_pattern} → to: {url.to_pattern}")
+  click.echo("\nStyle patterns:")
+  for style in config.transform.style_transforms:
+    click.echo(f"from: {style.from_pattern} → to: {style.to_pattern}")
+  click.echo("\nText patterns:")
+  for text in config.transform.text_transforms:
+    click.echo(f"from: {text.from_pattern} → to: {text.to_pattern}")
+
   click.echo("\nConfiguration is valid! ✓")
-
-@cli.command()
-@click.pass_context
-def info(ctx: click.Context):
-  """Display information about current configuration.
-
-  Shows detailed information about the current configuration,
-  including paths, patterns, and runtime settings.
-  """
-  config = ctx.obj['config']
-  click.echo(click.style("Runtime Configuration", fg='green', bold=True))
-  click.echo(f"Workers: {config.run_config.workers}")
-  click.echo(f"Mode: {'Synchronous' if config.run_config.sync_mode else 'Asynchronous'}")
-  click.echo(f"Operation: {'Find Only' if config.run_config.find_only else 'Modify'}")
-  click.echo(f"Verbosity: {config.run_config.verbose}")
-
-  click.echo("\n" + click.style("Paths", fg='green', bold=True))
-  click.echo(f"Source: {config.source_dir}")
-  click.echo(f"Destination: {config.destination_dir}")
-  click.echo(f"Log File: {config.log_file}")
-
-  click.echo("\n" + click.style("URL Patterns", fg='green', bold=True))
-  for pattern in config.url_config.find_patterns:
-    click.echo(f"Find: {pattern}")
-  for find, replace in config.url_config.replace_patterns.items():
-    click.echo(f"Replace: {find} → {replace}")
-
 
 def main():
   """Entry point for the CLI application."""

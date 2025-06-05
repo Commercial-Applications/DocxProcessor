@@ -21,7 +21,6 @@ class TransformConfig:
         """Load transformation configuration from YAML file."""
         with open(config_path, 'r') as f:
             config_data = yaml.safe_load(f)
-        print(config_path)
         return cls(
             url_transforms=[
                 RegexTransform(t['from'], t['to'])
