@@ -145,7 +145,6 @@ class DocumentProcessor:
         for transform in self.config.transform.style_transforms:
             for style in doc.styles:
                 if style.name == transform.from_pattern:
-                    #TODO: Logg and check if we are changing
                     style.name = transform.to_pattern
                     self.logger.extra['match'] = 'True'
                     self.logger.info(f"Table Style {transform.from_pattern} Found.. Converting, {transform.from_pattern} → {transform.new_pattern}")
