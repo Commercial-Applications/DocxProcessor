@@ -1,8 +1,10 @@
 from docx import Document
+from docx.text.paragraph import Paragraph
 from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from pathlib import Path
 from typing import Callable
 from docx_processor.utils import non_rel_hyperlinks
+from .docx_indexer import DocxIndexer
 import re
 
 class DocumentProcessor:
@@ -22,83 +24,49 @@ class DocumentProcessor:
         })
         self.current_heading = None
 
-    def _track_heading(self, paragraph):
-        """Track the current heading level if paragraph is a heading."""
-        try:
-            # Reset current heading at start of new document
-            if not hasattr(self, 'current_heading'):
-                self.current_heading = None
-                self.logger.extra['location'] = ''
-
-            if (hasattr(paragraph, 'style') and
-                    hasattr(paragraph.style, 'name') and
-                    paragraph.style.name.startswith('Heading')):
-
-                heading_text = ''
-                for run in paragraph.runs:
-                    if hasattr(run, 'text'):
-                        heading_text += run.text
-
-                heading_text = heading_text.strip()
-                if heading_text:  # Only update if we have text content
-                    level = paragraph.style.name.split()[-1] if len(paragraph.style.name.split()) > 1 else ''
-                    truncated_text = heading_text[:50] + ('...' if len(heading_text) > 50 else '')
-                    self.current_heading = f"H{level}: {truncated_text}"
-                    # Reset and update logger extra
-                    self.logger.extra['location'] = self.current_heading
-
-        except Exception as e:
-            self.logger.debug(f"Heading tracking error: {str(e)}")
-
-    def _rel_hyperlinks(self, element: Document, modify_func: Callable[[str], str]) -> None:
+    def _rel_hyperlinks(self, element: Document, modify_func: Callable[[str], str], doc_index) -> None:
         """Process a section of the document for URL modifications."""
+        # Process hyperlinks in relationships
         self.logger.extra.update({
             'module': 'rel_hyperlinks',
             'task': 'rel_URLs'
         })
-        if hasattr(element.part, 'rels'):
-            # Track the current paragraph we're in
-            for paragraph in element.paragraphs:
-                # Update heading context for this paragraph
-                self._track_heading(paragraph)
-                # Look for hyperlinks in this paragraph's runs
-                for run in paragraph.runs:
-                    if hasattr(run, '_r'):
-                        # Find hyperlink elements
-                        hyperlink_element = run._r.getparent()
-                        if hyperlink_element is not None and hyperlink_element.tag.endswith('hyperlink'):
-                            # Get the relationship ID
-                            rel_id = hyperlink_element.get(
-                                '{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id')
-                            if rel_id and rel_id in element.part.rels:
-                                rel = element.part.rels[rel_id]
-                                if rel.reltype == RT.HYPERLINK:
-                                    original_url = rel.target_ref
-                                    if self.url_pattern.search(original_url):
-                                        new_url = modify_func(original_url)
-                                        self.logger.extra['match'] = 'True'
-                                        self.logger.info(f"{rel.target_ref} -> {new_url}")
-                                        self.logger.extra['match'] = 'False'
-                                        rel._target = new_url
 
-    def _para_hyperlinks(self, element: Document, modify_func: Callable[[str], str]) -> None:
+        #Itterates Over
+        if hasattr(element.part, 'rels'):
+            for rel_id, rel in element.part.rels.items():
+                if rel.reltype == RT.HYPERLINK:
+                    original_url = rel.target_ref
+                    if self.url_pattern.search(original_url):
+                        para=doc_index.find_paragraph_by_rId(rel_id)
+                        closest_heading = doc_index.find_closest_heading_above(para)
+                        self.logger.extra['location'] = closest_heading if closest_heading else ''
+                        self.logger.extra['match'] = 'True'
+                        new_url = modify_func(original_url)
+                        self.logger.info(f"{rel.target_ref} -> {new_url}")
+                        self.logger.extra['match'] = 'False'
+                        rel._target = new_url
+
+    def _para_hyperlinks(self, element: Document, modify_func: Callable[[str], str], doc_index) -> None:
         self.logger.extra.update({
             'module': 'para_hyperlinks',
             'task': 'para_URLs'
             })
         for para in element.paragraphs:
-            self._track_heading(para)
             for hyperlink in para.hyperlinks:
                 for runs in hyperlink.runs:
                     original_url = runs.text
                     if self.url_pattern.search(original_url):
                         new_url = modify_func(original_url)
+                        closest_heading = doc_index.find_closest_heading_above(para)
+                        self.logger.extra['location'] = closest_heading if closest_heading else ''
                         self.logger.extra['match'] = 'True'
                         self.logger.debug(f"{runs.text} -> {new_url}")
                         self.logger.extra['match'] = 'False'
                         runs.text = new_url
+                        # Does Not Modify url
 
-    def transform_urls(self, doc: Document) -> None:
+    def transform_urls(self, doc: Document, doc_index) -> None:
         """
         Modify URLs in the document.
         There are 2 types or URL's Relationship and Paragraph
@@ -107,17 +75,17 @@ class DocumentProcessor:
         """
         # Process body text
         self.logger.extra['section'] = 'Body'
-        self._rel_hyperlinks(doc, self._url_replace_regex) # Type A
-        self._para_hyperlinks(doc, self._url_replace_regex) # Type B
+        self._rel_hyperlinks(doc, self._url_replace_regex, doc_index) # Type A
+        self._para_hyperlinks(doc, self._url_replace_regex, doc_index) # Type B
 
         # Process headers and footers
         for idx, section in enumerate(doc.sections):
             self.logger.extra['section'] = 'Header'
-            self._rel_hyperlinks(section.header, self._url_replace_regex) # Type A
-            self._para_hyperlinks(section.header, self._url_replace_regex) # Type A
+            self._rel_hyperlinks(section.header, self._url_replace_regex, doc_index) # Type A
+            self._para_hyperlinks(section.header, self._url_replace_regex, doc_index) # Type A
 
             self.logger.extra['section'] = 'Footer'
-            self._rel_hyperlinks(section.footer, self._url_replace_regex) # Type A
+            self._rel_hyperlinks(section.footer, self._url_replace_regex, doc_index) # Type A
 
     def _url_replace_regex(self, original_url: str) -> str:
         """Replace URLs according to the configured pattern."""
@@ -140,6 +108,7 @@ class DocumentProcessor:
         self.logger.extra.update({
             'section': 'Whole Document',
             'module': 'transform_styles',
+            'location': 'NA'
         })
 
         for transform in self.config.transform.style_transforms:
@@ -150,7 +119,11 @@ class DocumentProcessor:
                     self.logger.info(f"Table Style {transform.from_pattern} Found.. Converting, {transform.from_pattern} → {transform.new_pattern}")
                     self.logger.extra['match'] = 'False'
 
-    def transform_text(self, doc: Document):
+    def transform_text(self, element: Document, doc_index):
+        for para in element.paragraphs:
+            closest_heading = doc_index.find_closest_heading_above(para)
+            self.logger.extra['location'] = closest_heading if closest_heading else ''
+
         return None
         # TODO: Add Text Transformation
 
@@ -167,6 +140,9 @@ class DocumentProcessor:
                 'section': 'NA',
                 'module': 'process_document'
             })
+
+            doc_index = DocxIndexer(doc)
+            self.logger.debug("--Index Document --")
             self.logger.debug("START Document Processing")
 
             # Check for non standard Hyperlinks and Log
@@ -175,8 +151,9 @@ class DocumentProcessor:
 
             # TODO Several of these have to itterate Paragraphs so makes sense to do them in one block
             if self.config.transform.url_transforms:
-                self.logger.debug(f"Starting URL modification")
-                self.transform_urls(doc)
+                self.logger.extra['task'] = 'hyperlinks'
+                self.logger.debug(f"Starting URL Identification")
+                self.transform_urls(doc, doc_index)
 
             if self.config.transform.style_transforms:
                 self.logger.extra['task'] = 'Styles'
@@ -186,7 +163,7 @@ class DocumentProcessor:
             if self.config.transform.text_transforms:
                 self.logger.extra['task'] = 'Text'
                 self.logger.debug(f"Starting Text Identification")
-                self.transform_text(doc)
+                self.transform_text(doc, doc_index)
 
             # Save The Document
             if not self.config.runtime.find_only:

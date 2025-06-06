@@ -6,10 +6,8 @@ url_transforms:
     to: "GM3"
 
 text_transforms:
-  - from: "Company Name Ltd\\."
-    to: "Company Name Limited"
-  - from: "(?i)Department of\\s+(.*?)"
-    to: "Dept. of $1"
+  - from: "South\\s?32"
+    to: "GM3"
 
 style_transforms:
   - from: "Glencore"
