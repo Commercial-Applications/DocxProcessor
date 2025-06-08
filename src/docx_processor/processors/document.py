@@ -108,7 +108,6 @@ class DocumentProcessor:
         self.logger.extra.update({
             'section': 'Whole Document',
             'module': 'transform_styles',
-            'location': 'NA'
         })
 
         for transform in self.config.transform.style_transforms:
@@ -119,10 +118,22 @@ class DocumentProcessor:
                     self.logger.info(f"Table Style {transform.from_pattern} Found.. Converting, {transform.from_pattern} → {transform.new_pattern}")
                     self.logger.extra['match'] = 'False'
 
-    def transform_text(self, element: Document, doc_index):
+    def transform_text(self, element: Document, doc_index, transforms):
+        self.logger.extra.update({
+            'section': 'Body',
+            'module': 'transform_text',
+        })
         for para in element.paragraphs:
-            closest_heading = doc_index.find_closest_heading_above(para)
-            self.logger.extra['location'] = closest_heading if closest_heading else ''
+            for regex in transforms:
+                if re.search(regex.from_pattern, para.text):
+                    self.logger.extra['match'] = 'True'
+                    closest_heading = doc_index.find_closest_heading_above(para)
+                    self.logger.extra['location'] = closest_heading
+                    trunc_para_text = (para.text[:47] + "...") if len(para.text) > 50 else para.text
+                    self.logger.info(
+                        f"Match: '{regex.from_pattern}' at paragraph '{trunc_para_text}'"
+                    )
+                    self.logger.extra['match'] = 'False'
 
         return None
         # TODO: Add Text Transformation
@@ -143,7 +154,7 @@ class DocumentProcessor:
 
             doc_index = DocxIndexer(doc)
             self.logger.debug("--Index Document --")
-            self.logger.debug("START Document Processing")
+            self.logger.debug("-- Start Processing --")
 
             # Check for non standard Hyperlinks and Log
             self.logger.debug(f"Starting Non-Rel-URL Identification")
@@ -163,7 +174,7 @@ class DocumentProcessor:
             if self.config.transform.text_transforms:
                 self.logger.extra['task'] = 'Text'
                 self.logger.debug(f"Starting Text Identification")
-                self.transform_text(doc, doc_index)
+                self.transform_text(doc, doc_index, self.config.transform.text_transforms)
 
             # Save The Document
             if not self.config.runtime.find_only:
