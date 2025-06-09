@@ -4,6 +4,11 @@ from pathlib import Path
 
 def non_rel_hyperlinks(logger, file_path: Path) -> None:
   # Logs as an Error
+  logger.extra.update({
+    'module': 'non_rel_hyperlinks',
+    'task': 'non_rel_hyperlinks'
+  })
+
   with zipfile.ZipFile(file_path) as docx:
     xml_content = docx.read('word/document.xml')
   tree = etree.fromstring(xml_content)
@@ -18,5 +23,7 @@ def non_rel_hyperlinks(logger, file_path: Path) -> None:
       # Extract the URL inside the HYPERLINK field code
       parts = instr.text.split('"')
       if len(parts) >= 2:
+        logger.extra['match'] = 'True'
         logger.extra['section'] = 'XML'
-        logger.error(f"Non-Rel URL: {parts[1]}")  # URL is typically the first quoted string
+        logger.info(f"Non-Rel URL: {parts[1]} (Non-standard URL embedding)")
+        logger.extra['match'] = 'False'

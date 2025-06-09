@@ -2,9 +2,11 @@ import logging
 import sys
 from pathlib import Path
 from typing import Optional
-from custom_formatter import CustomFormatter
+from .custom_formatter import CustomFormatter
 
 class DocxLogger:
+    CSV_HEADERS = "Timestamp,Level,Path,Document,Section,Module,Location,Task,Match,Message\n"
+
     def __init__(self, log_file: Optional[Path] = None, level: int = logging.DEBUG):
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(level)
@@ -18,13 +20,30 @@ class DocxLogger:
         console_handler.setLevel(level)
         console_handler.setFormatter(CustomFormatter())
         self.logger.addHandler(console_handler)
-        
+
         # File handler if log file is specified
         if log_file:
-            file_handler = logging.FileHandler(log_file, encoding='utf-8')
-            file_handler.setFormatter(logging.Formatter("%(asctime)s,%(levelname)s,%(message)s", datefmt="%Y-%m-%d %H:%M:%S"))
+            # Change extension to .csv
+            log_file = log_file.with_suffix('.csv')
+
+            # Write headers if file doesn't exist or is empty
+            if not log_file.exists() or log_file.stat().st_size == 0:
+                log_file.write_text(self.CSV_HEADERS, encoding='utf-8')
+
+            file_handler = logging.FileHandler(log_file, mode='a', encoding='utf-8')
+            file_handler.setFormatter(logging.Formatter(
+                "%(asctime)s,%(levelname)s,%(message)s",
+                datefmt="%Y-%m-%d %H:%M:%S"
+            ))
             self.logger.addHandler(file_handler)
-    
+
+        @property
+        def logger(self):
+            return self._logger
+
+    def isEnabledFor(self, level: int) -> bool:
+        return self.logger.isEnabledFor(level)
+
     def debug(self, message: str) -> None:
         self.logger.debug(message)
     
@@ -40,13 +59,5 @@ class DocxLogger:
     def exception(self, message: str) -> None:
         self.logger.exception(message)
 
-class ContextLoggerAdapter(logging.LoggerAdapter):
-    def process(self, msg, kwargs):
-        ctx = self.extra
-        return (
-            f"{ctx.get('document_full_path', 'unknown')},"
-            f"{ctx.get('document_name', 'unknown')},"
-            f"{ctx.get('section', 'unknown')},"
-            f"{ctx.get('task', 'unknown')},"
-            f"{msg}", kwargs
-        )
+    def log(self, level: int, msg: str, *args, **kwargs) -> None:
+        self.logger.log(level, msg, *args, **kwargs)
