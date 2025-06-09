@@ -14,6 +14,10 @@ Works with the document xml so does not require word to be opened for each file.
 * Is Case insensitive
 * Both http and https are captured
 
+* Will identify and Name chnage styles
+* Will identify multiple text patterns within a paragraph. NOTE: A matched paragraph may contain 1 or more instances of pattern.
+
+
 ## Pending:
 * Tables (This is possible)
 
@@ -22,7 +26,7 @@ There are some edge cases that may cause issues.
 Works only on current word .docx (xml) not .doc
 
 ## License
-Copyright (c) 2024 Sean Smith
+Copyright (c) 2025 Cravern
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 

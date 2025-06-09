@@ -25,5 +25,5 @@ def non_rel_hyperlinks(logger, file_path: Path) -> None:
       if len(parts) >= 2:
         logger.extra['match'] = 'True'
         logger.extra['section'] = 'XML'
-        logger.error(f"Non-Rel URL: {parts[1]}")
+        logger.info(f"Non-Rel URL: {parts[1]} (Non-standard URL embedding)")
         logger.extra['match'] = 'False'

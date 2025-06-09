@@ -4,11 +4,11 @@ url_transforms:
     to: "gm3.au" # www not required
   - from: ".*/s[sS]outh32/s.*"
     to: "GM3"
-
 text_transforms:
   - from: "South\\s?32"
     to: "GM3"
-
+  - from: "\\sS32\\s"
+    to: "GM3"
 style_transforms:
   - from: "Glencore"
     to: "GM3"

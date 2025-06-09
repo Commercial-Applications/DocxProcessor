@@ -1,5 +1,4 @@
 from docx import Document
-from docx.text.paragraph import Paragraph
 from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from pathlib import Path
 from typing import Callable
@@ -61,7 +60,7 @@ class DocumentProcessor:
                         closest_heading = doc_index.find_closest_heading_above(para)
                         self.logger.extra['location'] = closest_heading if closest_heading else ''
                         self.logger.extra['match'] = 'True'
-                        self.logger.debug(f"{runs.text} -> {new_url}")
+                        self.logger.info(f"{runs.text} -> {new_url}")
                         self.logger.extra['match'] = 'False'
                         runs.text = new_url
                         # Does Not Modify url
@@ -152,14 +151,14 @@ class DocumentProcessor:
                 'module': 'process_document'
             })
 
-            doc_index = DocxIndexer(doc)
+            doc_index = DocxIndexer(doc, self.logger)
             self.logger.debug("--Index Document --")
             self.logger.debug("-- Start Processing --")
 
             # Check for non standard Hyperlinks and Log
             self.logger.debug(f"Starting Non-Rel-URL Identification")
-            non_rel_hyperlinks(self.logger, input_path)
 
+            non_rel_hyperlinks(self.logger, input_path)
             # TODO Several of these have to itterate Paragraphs so makes sense to do them in one block
             if self.config.transform.url_transforms:
                 self.logger.extra['task'] = 'hyperlinks'

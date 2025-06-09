@@ -3,18 +3,25 @@ from docx.text.paragraph import Paragraph
 from typing import Dict, List, Optional, Tuple
 
 class DocxIndexer:
-  def __init__(self, doc: Document):
+  def __init__(self, doc: Document, logger):
     self.doc = doc
     self.rId_to_paragraph: Dict[str, Paragraph] = {}
     self.paragraph_index: Dict[Paragraph, int] = {}
     self.heading_paragraphs: List[Tuple[Paragraph, int]] = []
     self._build_index()
+    self.logging = logger
 
   def _get_paragraph_id(self, para: Paragraph) -> str:
     """
     Gets the unique paragraph ID from Word's XML structure.
     Falls back to alternative identification if not available.
     """
+
+    # Check if paragraph is None or doesn't have _element
+    if para is None or not hasattr(para, '_element') or para._element is None:
+      self.logging.warning(f"**The above link embeded in a table: {para}")
+      return f"invalid_paragraph_{id(para)}"
+
     # Try to get the w14:paraId first
     para_id = para._element.get('{http://schemas.microsoft.com/office/word/2010/wordml}paraId')
     if para_id:
