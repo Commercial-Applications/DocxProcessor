@@ -6,10 +6,10 @@ Licensed under the MIT License. See LICENSE file for details.
 """
 from .processors.document import DocumentProcessor
 from .processors.batch import BatchProcessor
-from config import AppConfig
-from logger import DocxLogger, ContextLoggerAdapter
+from .config import AppConfig
+from .logger import DocxLogger, ContextLoggerAdapter
+from .version import __version__
 
-__version__ = "2.0.0"
 __author__ = "Sean Smith"
 __copyright__ = "Copyright (c) 2024 Sean Smith"
 __license__ = "MIT"
@@ -20,4 +20,5 @@ __all__ = [
     'AppConfig',
     'DocxLogger',
     'ContextLoggerAdapter',
+    '__version__'
 ]
