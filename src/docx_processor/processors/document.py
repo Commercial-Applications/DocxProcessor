@@ -1,17 +1,20 @@
-from docx import Document
-from docx.opc.constants import RELATIONSHIP_TYPE as RT
+import re
 from pathlib import Path
 from typing import Callable
+
+from docx import Document
+from docx.opc.constants import RELATIONSHIP_TYPE as RT
+
 from docx_processor.utils import non_rel_hyperlinks
 from .docx_indexer import DocxIndexer
-import re
+
 
 class DocumentProcessor:
     def __init__(self, config, logger):
         self.config = config
         self.logger = logger
         self.url_pattern = re.compile(self.config.transform.url_transforms[0].from_pattern, re.IGNORECASE)
-        #TODO: Loop through Multiple Regexs - Set to the first at the min.
+        # TODO: Loop through Multiple Regexs - Set to the first at the min.
 
         # Initialize base logger context that will be constant for this document processor
         self.logger.extra.update({
@@ -31,13 +34,13 @@ class DocumentProcessor:
             'task': 'rel_URLs'
         })
 
-        #Itterates Over
+        # Itterates Over
         if hasattr(element.part, 'rels'):
             for rel_id, rel in element.part.rels.items():
                 if rel.reltype == RT.HYPERLINK:
                     original_url = rel.target_ref
                     if self.url_pattern.search(original_url):
-                        para=doc_index.find_paragraph_by_rId(rel_id)
+                        para = doc_index.find_paragraph_by_rId(rel_id)
                         closest_heading = doc_index.find_closest_heading_above(para)
                         self.logger.extra['location'] = closest_heading if closest_heading else ''
                         self.logger.extra['match'] = 'True'
@@ -50,7 +53,7 @@ class DocumentProcessor:
         self.logger.extra.update({
             'module': 'para_hyperlinks',
             'task': 'para_URLs'
-            })
+        })
         for para in element.paragraphs:
             for hyperlink in para.hyperlinks:
                 for runs in hyperlink.runs:
@@ -74,21 +77,21 @@ class DocumentProcessor:
         """
         # Process body text
         self.logger.extra['section'] = 'Body'
-        self._rel_hyperlinks(doc, self._url_replace_regex, doc_index) # Type A
-        self._para_hyperlinks(doc, self._url_replace_regex, doc_index) # Type B
+        self._rel_hyperlinks(doc, self._url_replace_regex, doc_index)  # Type A
+        self._para_hyperlinks(doc, self._url_replace_regex, doc_index)  # Type B
 
         # Process headers and footers
         for idx, section in enumerate(doc.sections):
             self.logger.extra['section'] = 'Header'
-            self._rel_hyperlinks(section.header, self._url_replace_regex, doc_index) # Type A
-            self._para_hyperlinks(section.header, self._url_replace_regex, doc_index) # Type A
+            self._rel_hyperlinks(section.header, self._url_replace_regex, doc_index)  # Type A
+            self._para_hyperlinks(section.header, self._url_replace_regex, doc_index)  # Type A
 
             self.logger.extra['section'] = 'Footer'
-            self._rel_hyperlinks(section.footer, self._url_replace_regex, doc_index) # Type A
+            self._rel_hyperlinks(section.footer, self._url_replace_regex, doc_index)  # Type A
 
     def _url_replace_regex(self, original_url: str) -> str:
         """Replace URLs according to the configured pattern."""
-        from_domain  = self.config.transform.url_transforms[0].from_pattern
+        from_domain = self.config.transform.url_transforms[0].from_pattern
         to_domain = self.config.transform.url_transforms[0].to_pattern
 
         def www_addition(match):
@@ -114,7 +117,8 @@ class DocumentProcessor:
                 if style.name == transform.from_pattern:
                     style.name = transform.to_pattern
                     self.logger.extra['match'] = 'True'
-                    self.logger.info(f"Table Style {transform.from_pattern} Found.. Converting, {transform.from_pattern} → {transform.new_pattern}")
+                    self.logger.info(
+                        f"Table Style {transform.from_pattern} Found.. Converting, {transform.from_pattern} → {transform.new_pattern}")
                     self.logger.extra['match'] = 'False'
 
     def transform_text(self, element: Document, doc_index, transforms):
@@ -156,23 +160,23 @@ class DocumentProcessor:
             self.logger.debug("-- Start Processing --")
 
             # Check for non standard Hyperlinks and Log
-            self.logger.debug(f"Starting Non-Rel-URL Identification")
+            self.logger.debug("Starting Non-Rel-URL Identification")
 
             non_rel_hyperlinks(self.logger, input_path)
             # TODO Several of these have to itterate Paragraphs so makes sense to do them in one block
             if self.config.transform.url_transforms:
                 self.logger.extra['task'] = 'hyperlinks'
-                self.logger.debug(f"Starting URL Identification")
+                self.logger.debug("Starting URL Identification")
                 self.transform_urls(doc, doc_index)
 
             if self.config.transform.style_transforms:
                 self.logger.extra['task'] = 'Styles'
-                self.logger.debug(f"Starting Style Identification")
+                self.logger.debug("Starting Style Identification")
                 self.transform_styles(doc)
 
             if self.config.transform.text_transforms:
                 self.logger.extra['task'] = 'Text'
-                self.logger.debug(f"Starting Text Identification")
+                self.logger.debug("Starting Text Identification")
                 self.transform_text(doc, doc_index, self.config.transform.text_transforms)
 
             # Save The Document
@@ -188,5 +192,3 @@ class DocumentProcessor:
         except Exception as e:
             self.logger.extra['task'] = 'ERROR'
             self.logger.exception(f"Failed to process {input_path} with error: {e}")
-
-

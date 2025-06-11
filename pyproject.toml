@@ -34,8 +34,12 @@ dev = [
 asyncio_mode = "auto"
 testpaths = ["tests"]
 
+[tool.flake8]
+max-line-length = 120
+extend-ignore = ['E203']  # Ignore whitespace before ':' which black handles
+
 [tool.black]
-line-length = 88
+line-length = 120
 target-version = ["py38"]
 include = '\.pyi?$'
 

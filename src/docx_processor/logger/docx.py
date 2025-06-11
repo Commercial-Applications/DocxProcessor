@@ -2,7 +2,9 @@ import logging
 import sys
 from pathlib import Path
 from typing import Optional
+
 from .custom_formatter import CustomFormatter
+
 
 class DocxLogger:
     CSV_HEADERS = "Timestamp,Level,Path,Document,Section,Module,Location,Task,Match,Message\n"
@@ -14,7 +16,7 @@ class DocxLogger:
         # Remove any existing handlers
         for handler in self.logger.handlers[:]:
             self.logger.removeHandler(handler)
-        
+
         # Console handler with custom formatter
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setLevel(level)
@@ -46,16 +48,16 @@ class DocxLogger:
 
     def debug(self, message: str) -> None:
         self.logger.debug(message)
-    
+
     def info(self, message: str) -> None:
         self.logger.info(message)
-    
+
     def warning(self, message: str) -> None:
         self.logger.warning(message)
-    
+
     def error(self, message: str) -> None:
         self.logger.error(message)
-    
+
     def exception(self, message: str) -> None:
         self.logger.exception(message)
 

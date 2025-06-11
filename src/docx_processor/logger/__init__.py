@@ -1,10 +1,10 @@
 """
 Logging package initialization.
 """
-import logging
-from .docx import DocxLogger
 from .context import ContextLoggerAdapter
 from .custom_formatter import CustomFormatter
+from .docx import DocxLogger
+
 
 def setup_logger(config):
     """Create and configure a logger instance."""
@@ -31,5 +31,6 @@ def setup_logger(config):
         'location': 'No Heading',
         'match': 'False'
     })
+
 
 __all__ = ['DocxLogger', 'setup_logger', 'ContextLoggerAdapter', 'CustomFormatter']

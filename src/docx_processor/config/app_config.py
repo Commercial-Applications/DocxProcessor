@@ -1,13 +1,16 @@
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List
+
 import yaml
+
 
 @dataclass
 class RegexTransform:
     """Single regex transformation rule."""
     from_pattern: str
     to_pattern: str
+
 
 @dataclass
 class TransformConfig:
@@ -36,6 +39,7 @@ class TransformConfig:
             ]
         )
 
+
 @dataclass
 class RuntimeConfig:
     """Configuration from CLI arguments."""
@@ -47,6 +51,7 @@ class RuntimeConfig:
     sync_mode: bool
     find_only: bool
     verbose: int
+
 
 @dataclass
 class AppConfig:
