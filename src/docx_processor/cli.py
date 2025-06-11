@@ -2,19 +2,14 @@
 Command-line interface for docx-processor.
 """
 import asyncio
-import sys
 from pathlib import Path
-
-from config import TransformConfig
-
 import click
-
-from config import AppConfig, RuntimeConfig
-from docx_processor.config.app_config import RegexTransform
-from processors import BatchProcessor
-
 from logging import Logger
-from logger import setup_logger
+
+from .config import AppConfig, RuntimeConfig, TransformConfig
+from .processors import BatchProcessor
+from .logger import setup_logger
+from .version import __version__
 
 
 def process_documents(config: AppConfig) -> int:
@@ -28,9 +23,7 @@ def process_documents(config: AppConfig) -> int:
   try:
     processor = BatchProcessor(
       config=config,
-      logger=logger,
-  #    max_workers=config.runtime.workers,
-  #    find_only=config.runtime.find_only
+      logger=logger
     )
 
     if config.runtime.sync_mode:
@@ -47,6 +40,7 @@ def process_documents(config: AppConfig) -> int:
     return 1
 
 @click.group()
+@click.version_option(version=__version__, prog_name='docx-processor')
 @click.option(
   '-c', '--config',
   type=click.Path(exists=True, path_type=Path),
@@ -154,6 +148,7 @@ def validate(ctx: click.Context):
   """
   config = ctx.obj['config']
   click.echo("Configuration validation:")
+  click.echo(f"  Version: {__version__}")
   click.echo(f"  Source directory: {config.runtime.source_dir}")
   click.echo(f"  Destination directory: {config.runtime.destination_dir}")
   click.echo(f"  Log file: {config.runtime.log_file}")

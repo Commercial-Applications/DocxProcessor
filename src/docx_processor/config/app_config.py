@@ -48,7 +48,6 @@ class RuntimeConfig:
     find_only: bool
     verbose: int
 
-
 @dataclass
 class AppConfig:
     """Combined application configuration."""
