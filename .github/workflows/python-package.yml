@@ -1,8 +1,8 @@
-name: Python Package
+name: DocxProcessor CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ v2.1.0-logging-and-test-framework ]
   pull_request:
     branches: [ main ]
 
@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.8", "3.9", "3.10", "3.11"]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
 
     steps:
     - uses: actions/checkout@v3
@@ -19,13 +19,40 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
+
+    - name: Cache pip packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -e ".[dev]"
+
+    - name: Check formatting with black
+      run: |
+        black --check src/ tests
+
     - name: Lint with flake8
       run: |
         flake8 src/ tests/
+
     - name: Test with pytest
       run: |
         pytest tests/
+
+    - name: Upload coverage reports to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+
+  security:
+   runs-on: ubuntu-latest
+   steps:
+     - uses: actions/checkout@v3
+     - name: Run security scan
+       uses: pypa/gh-action-pip-audit@v1.0.8

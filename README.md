@@ -92,6 +92,22 @@ Output includes:
 - Operation mode
 - URL patterns and replacements
 
+## Sample Config
+```yaml
+url_transforms:
+  - from: "(www\\.)?south32\\.net"
+    to: "gm3.au" # www not required
+  - from: ".*/s[sS]outh32/s.*"
+    to: "GM3"
+text_transforms:
+  - from: "South\\s?32"
+    to: "GM3"
+  - from: "\\sS32\\s"
+    to: "GM3"
+style_transforms:
+  - from: "Glencore"
+    to: "GM3"`
+```
 ## Notes
 - The `--config` file should be a YAML file containing transform rules for URLs, text, and styles
 - Use `--find-only` first to verify matches before applying modifications

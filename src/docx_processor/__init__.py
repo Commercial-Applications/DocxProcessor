@@ -6,6 +6,7 @@ Licensed under the MIT License. See LICENSE file for details.
 """
 from .config import AppConfig
 from .logger import DocxLogger, ContextLoggerAdapter
+from .processors import DocxIndexer
 from .processors.batch import BatchProcessor
 from .processors.document import DocumentProcessor
 from .version import __version__
@@ -20,5 +21,6 @@ __all__ = [
     'AppConfig',
     'DocxLogger',
     'ContextLoggerAdapter',
+    'DocxIndexer',
     '__version__'
 ]
