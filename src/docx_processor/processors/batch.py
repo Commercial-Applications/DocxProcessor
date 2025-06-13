@@ -68,24 +68,20 @@ class BatchProcessor:
         task_logger = ContextLoggerAdapter(
             self.logger.logger,  # Get underlying logger
             {
-                'document_name': input_path.name,
-                'document_full_path': str(input_path),
-                'section': '',
-                'module': '',
-                'location': 'No Heading',
-                'match': 'False'
-            }
+                "document_name": input_path.name,
+                "document_full_path": str(input_path),
+                "section": "",
+                "module": "",
+                "location": "No Heading",
+                "match": "False",
+            },
         )
         try:
             # Run CPU-intensive document processing in a thread pool
             loop = asyncio.get_event_loop()
             with ThreadPoolExecutor() as pool:
                 result = await loop.run_in_executor(
-                    pool,
-                    self._process_single_document,
-                    input_path,
-                    output_path,
-                    task_logger
+                    pool, self._process_single_document, input_path, output_path, task_logger
                 )
             return result
         except Exception as e:

@@ -12,7 +12,7 @@ license = { file = "LICENSE" }
 authors = [
     { name = "Sean Smith", email = "sean.smith@comapps.net" }
 ]
-urls = {repository = "https://github.com/Commercial-Applications/DocxProcessor"}
+urls = { repository = "https://github.com/Commercial-Applications/DocxProcessor" }
 
 dependencies = [
     "python-docx>=0.8.11",

@@ -1,4 +1,4 @@
-#%%
+# %%
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -22,6 +22,7 @@ def mock_document():
     doc.paragraphs = []
     return doc
 
+
 @pytest.fixture
 def mock_paragraph():
     para = Mock(spec=Paragraph)
@@ -32,6 +33,7 @@ def mock_paragraph():
     para.style = Mock()
     para.style.name = "Normal"
     return para
+
 
 @pytest.fixture
 def test_doc_path():
@@ -46,17 +48,12 @@ def test_get_paragraph_id_with_para_id(mock_logger, mock_document, mock_paragrap
     result = indexer._get_paragraph_id(mock_paragraph)
 
     assert result == "test-id-123"
-    mock_paragraph._element.get.assert_called_with(
-        '{http://schemas.microsoft.com/office/word/2010/wordml}paraId'
-    )
+    mock_paragraph._element.get.assert_called_with("{http://schemas.microsoft.com/office/word/2010/wordml}paraId")
 
 
 def test_get_paragraph_id_fallback_to_w_id(mock_logger, mock_document, mock_paragraph):
     mock_document.paragraphs = []
-    mock_paragraph._element.get.side_effect = [
-        None,
-        "w-id-456"
-    ]
+    mock_paragraph._element.get.side_effect = [None, "w-id-456"]
     indexer = DocxIndexer(mock_document, mock_logger)
     result = indexer._get_paragraph_id(mock_paragraph)
 
@@ -123,7 +120,6 @@ def test_find_closest_heading_above(mock_logger, mock_document):
 
 def test_find_paragraph_by_rId(mock_logger, mock_document, mock_paragraph):
     mock_document.paragraphs = [mock_paragraph]
-
 
     mock_element = Mock()
     mock_element.tag = "hyperlink"

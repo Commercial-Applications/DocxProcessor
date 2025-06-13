@@ -10,7 +10,7 @@ fake = Faker()
 
 final_doc = Document()
 
-TARGET_WORDS = ['FindMe1', 'FindMe2', 'FindMe3', 'FindMe4']
+TARGET_WORDS = ["FindMe1", "FindMe2", "FindMe3", "FindMe4"]
 TARGET_WORDS_COUNT = {word: 20 for word in TARGET_WORDS}
 NUM_PAGES = 50
 HYPERLINKS_COUNT = 50
@@ -22,10 +22,7 @@ links_inserted = 0
 mailto_inserted = 0
 heading_counters = {1: 0, 2: 0, 3: 0}
 
-mailto_links = [
-    f"mailto:{fake.first_name().lower()}.{fake.last_name().lower()}@testcompany.com"
-    for _ in range(25)
-]
+mailto_links = [f"mailto:{fake.first_name().lower()}.{fake.last_name().lower()}@testcompany.com" for _ in range(25)]
 
 # Generate fixed links: https://testcompany.com/Test-1 to Test-25
 fixed_links = [f"https://testcompany.com/Test-{i}" for i in range(1, 26)]
@@ -39,6 +36,7 @@ current_position = 0
 
 heading_counters = {1: 0, 2: 0, 3: 0}
 
+
 def add_styled_hyperlink(paragraph, url, text):
     """
     Add a styled hyperlink to a paragraph. Style = blue and underlined.
@@ -46,41 +44,40 @@ def add_styled_hyperlink(paragraph, url, text):
     # Create the relationship ID
     part = paragraph.part
     r_id = part.relate_to(
-        url,
-        'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',
-        is_external=True
+        url, "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink", is_external=True
     )
 
     # Create the <w:hyperlink> element and set the relationship ID
-    hyperlink = OxmlElement('w:hyperlink')
-    hyperlink.set(qn('r:id'), r_id)
+    hyperlink = OxmlElement("w:hyperlink")
+    hyperlink.set(qn("r:id"), r_id)
 
     # Create a <w:r> element
-    new_run = OxmlElement('w:r')
+    new_run = OxmlElement("w:r")
 
     # Create a <w:rPr> element for styling
-    rPr = OxmlElement('w:rPr')
+    rPr = OxmlElement("w:rPr")
 
     # Style: color = blue
-    color = OxmlElement('w:color')
-    color.set(qn('w:val'), '0000FF')
+    color = OxmlElement("w:color")
+    color.set(qn("w:val"), "0000FF")
     rPr.append(color)
 
     # Style: underline = single
-    underline = OxmlElement('w:u')
-    underline.set(qn('w:val'), 'single')
+    underline = OxmlElement("w:u")
+    underline.set(qn("w:val"), "single")
     rPr.append(underline)
 
     new_run.append(rPr)
 
     # Add the hyperlink text
-    t = OxmlElement('w:t')
+    t = OxmlElement("w:t")
     t.text = text
     new_run.append(t)
 
     # Append run to hyperlink element and hyperlink to paragraph
     hyperlink.append(new_run)
     paragraph._p.append(hyperlink)
+
 
 def get_numbered_heading(level):
     if level == 1:
@@ -95,6 +92,7 @@ def get_numbered_heading(level):
     elif level == 3:
         heading_counters[3] += 1
         return f"{heading_counters[1]}.{heading_counters[2]}.{heading_counters[3]}"
+
 
 for page in range(NUM_PAGES):
     for level in range(1, random.randint(2, 4)):
@@ -115,7 +113,7 @@ for page in range(NUM_PAGES):
                         words[pos] = choice
                         word_inserts[choice] += 1
 
-            paragraph.add_run(' '.join(words))
+            paragraph.add_run(" ".join(words))
 
             # Insert fixed link if this is one of our randomly chosen positions
             if current_position in fixed_link_positions and fixed_links_remaining:
@@ -133,7 +131,6 @@ for page in range(NUM_PAGES):
                 mailto_inserted += 1
 
             current_position += 1
-
 
 output_path = "./MocWordDoc.docx"
 final_doc.save(output_path)

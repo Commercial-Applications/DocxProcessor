@@ -1,6 +1,7 @@
 """
 Command-line interface for docx-processor.
 """
+
 import asyncio
 from logging import Logger
 from pathlib import Path
@@ -22,10 +23,7 @@ def process_documents(config: AppConfig) -> int:
         return 1
 
     try:
-        processor = BatchProcessor(
-            config=config,
-            logger=logger
-        )
+        processor = BatchProcessor(config=config, logger=logger)
 
         if config.runtime.sync_mode:
             processor.process_all_docx()
@@ -42,67 +40,55 @@ def process_documents(config: AppConfig) -> int:
 
 
 @click.group()
-@click.version_option(version=__version__, prog_name='docx-processor')
+@click.version_option(version=__version__, prog_name="docx-processor")
 @click.option(
-    '-c', '--config',
+    "-c",
+    "--config",
     type=click.Path(exists=True, path_type=Path),
     required=True,
-    help='Path to transforms configuration file (YAML)'
+    help="Path to transforms configuration file (YAML)",
 )
 @click.option(
-    '--source-dir',
+    "--source-dir",
     type=click.Path(exists=True, path_type=Path),
     required=True,
-    help='Source directory containing documents to process'
+    help="Source directory containing documents to process",
 )
 @click.option(
-    '--dest-dir',
-    type=click.Path(path_type=Path),
-    required=True,
-    help='Destination directory for processed documents'
+    "--dest-dir", type=click.Path(path_type=Path), required=True, help="Destination directory for processed documents"
+)
+@click.option("--log-file", type=click.Path(path_type=Path), required=True, help="Path to log file")
+@click.option(
+    "--log-level",
+    type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"], case_sensitive=False),
+    default="WARNING",
+    help="Logging level",
 )
 @click.option(
-    '--log-file',
-    type=click.Path(path_type=Path),
-    required=True,
-    help='Path to log file'
-)
-@click.option(
-    '--log-level',
-    type=click.Choice(
-      ['DEBUG', 'INFO', 'WARNING', 'ERROR'],
-      case_sensitive=False),
-      default='WARNING',
-      help='Logging level'
-    )
-@click.option(
-    '--workers',
+    "--workers",
     type=click.IntRange(min=1),
     default=4,
-    help='Number of worker threads for async processing',
-    show_default=True
+    help="Number of worker threads for async processing",
+    show_default=True,
 )
+@click.option("--sync/--async", "sync_mode", default=False, help="Use synchronous processing instead of async")
 @click.option(
-    '--sync/--async',
-    'sync_mode',
-    default=False,
-    help='Use synchronous processing instead of async'
+    "--find-only/--modify", default=True, help="Only find and log matches without modifying them", show_default=True
 )
-@click.option(
-    '--find-only/--modify',
-    default=True,
-    help='Only find and log matches without modifying them',
-    show_default=True
-)
-@click.option(
-    '--verbose', '-v',
-    count=True,
-    help='Increase verbosity (can be used multiple times)'
-)
+@click.option("--verbose", "-v", count=True, help="Increase verbosity (can be used multiple times)")
 @click.pass_context
-def cli(ctx: click.Context, config: Path, source_dir: Path, dest_dir: Path,
-        log_file: Path, log_level: str, workers: int, sync_mode: bool,
-        find_only: bool, verbose: int):
+def cli(
+    ctx: click.Context,
+    config: Path,
+    source_dir: Path,
+    dest_dir: Path,
+    log_file: Path,
+    log_level: str,
+    workers: int,
+    sync_mode: bool,
+    find_only: bool,
+    verbose: int,
+):
     """DocX Processor - Process Word documents with configured transformations."""
     ctx.ensure_object(dict)
 
@@ -119,16 +105,13 @@ def cli(ctx: click.Context, config: Path, source_dir: Path, dest_dir: Path,
             workers=workers,
             sync_mode=sync_mode,
             find_only=find_only,
-            verbose=verbose
+            verbose=verbose,
         )
 
         # Create combined config
-        app_config = AppConfig(
-            transform=transform_config,
-            runtime=runtime_config
-        )
+        app_config = AppConfig(transform=transform_config, runtime=runtime_config)
 
-        ctx.obj['config'] = app_config
+        ctx.obj["config"] = app_config
 
     except Exception as e:
         raise click.ClickException(str(e))
@@ -138,7 +121,7 @@ def cli(ctx: click.Context, config: Path, source_dir: Path, dest_dir: Path,
 @click.pass_context
 def run(ctx: click.Context):
     """Process documents according to configuration."""
-    config = ctx.obj['config']
+    config = ctx.obj["config"]
     process_documents(config)
 
 
@@ -148,10 +131,10 @@ def validate(ctx: click.Context):
     from config.constants import DEFAULT_LOG_LEVEL
 
     """Validate configuration without processing documents.  
-    This command performs a dry-run validation of the configuration,
-    checking that all paths exist and patterns are valid.
-    """
-    config = ctx.obj['config']
+  This command performs a dry-run validation of the configuration,
+  checking that all paths exist and patterns are valid.
+  """
+    config = ctx.obj["config"]
     click.echo("Configuration validation:")
     click.echo(f"  Version: {__version__}")
     click.echo(f"  Source directory: {config.runtime.source_dir}")
