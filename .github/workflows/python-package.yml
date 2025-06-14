@@ -63,3 +63,6 @@ jobs:
       - uses: actions/checkout@v3
       - name: Run security scan
         uses: pypa/gh-action-pip-audit@v1.0.8
+        with:
+          # Scan the local virtual environment where we installed the project
+          local: true
