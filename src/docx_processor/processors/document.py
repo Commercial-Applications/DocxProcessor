@@ -105,7 +105,8 @@ class DocumentProcessor:
                     style.name = transform.to_pattern
                     self.logger.extra["match"] = "True"
                     self.logger.info(
-                        f"Table Style {transform.from_pattern} Found.. Converting, {transform.from_pattern} → {transform.new_pattern}"
+                        f"Table Style {transform.from_pattern} Found.. Converting, /"
+                        f"{transform.from_pattern} → {transform.new_pattern}"
                     )
                     self.logger.extra["match"] = "False"
 
