@@ -51,8 +51,8 @@ jobs:
 
       - name: Test with pytest
         run: |
-          cd $GITHUB_WORKSPACE
-          pytest tests/
+          cd $GITHUB_WORKSPACE/tests
+          pytest .
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v3
