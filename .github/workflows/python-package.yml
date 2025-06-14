@@ -46,6 +46,9 @@ jobs:
         run: |
           flake8 src/ tests/
 
+      - name: Debug file location
+        run: ls -R tests/
+
       - name: Test with pytest
         run: |
           cd $GITHUB_WORKSPACE
