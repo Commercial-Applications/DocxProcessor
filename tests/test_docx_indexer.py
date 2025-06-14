@@ -18,7 +18,7 @@ def mock_logger():
 
 @pytest.fixture
 def mock_document():
-    return Mock(spec=Document)
+    doc = Mock(spec=Document)
     doc.paragraphs = []
     return doc
 
