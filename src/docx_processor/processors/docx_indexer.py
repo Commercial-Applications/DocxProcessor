@@ -20,17 +20,17 @@ class DocxIndexer:
         """
 
         # Check if paragraph is None or doesn't have _element
-        if para is None or not hasattr(para, '_element') or para._element is None:
+        if para is None or not hasattr(para, "_element") or para._element is None:
             self.logging.warning(f"**The above link embeded in a table: {para}")
             return f"invalid_paragraph_{id(para)}"
 
         # Try to get the w14:paraId first
-        para_id = para._element.get('{http://schemas.microsoft.com/office/word/2010/wordml}paraId')
+        para_id = para._element.get("{http://schemas.microsoft.com/office/word/2010/wordml}paraId")
         if para_id:
             return para_id
 
         # Fallback to w:id if available
-        w_id = para._element.get('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}id')
+        w_id = para._element.get("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}id")
         if w_id:
             return w_id
 
@@ -50,7 +50,7 @@ class DocxIndexer:
                 self.heading_paragraphs.append((para, heading_level))
 
             for element in para._element.iter():
-                if element.tag.endswith('hyperlink'):
+                if element.tag.endswith("hyperlink"):
                     rId_value = element.get(f'{{{element.nsmap["r"]}}}id')
                     if rId_value:
                         self.rId_to_paragraph[rId_value] = para

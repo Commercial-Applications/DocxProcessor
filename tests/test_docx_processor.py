@@ -32,28 +32,19 @@ def mock_config():
         workers=1,
         sync_mode=True,
         find_only=False,
-        verbose=0
+        verbose=0,
     )
     transform_config = TransformConfig(
         url_transforms=[
             RegexTransform(
-                from_pattern=r"https://testcompany\.com/Test-(\d+)",
-                to_pattern="https://newcompany.com/page-\\1"
+                from_pattern=r"https://testcompany\.com/Test-(\d+)", to_pattern="https://newcompany.com/page-\\1"
             )
         ],
-        text_transforms=[
-            RegexTransform(
-                from_pattern=r"FindMe\d",
-                to_pattern="Found"
-            )
-        ],
-        style_transforms=[]
+        text_transforms=[RegexTransform(from_pattern=r"FindMe\d", to_pattern="Found")],
+        style_transforms=[],
     )
 
-    return AppConfig(
-        transform=transform_config,
-        runtime=runtime_config
-    )
+    return AppConfig(transform=transform_config, runtime=runtime_config)
 
 
 class TestDocumentProcessor:
