@@ -132,5 +132,5 @@ for page in range(NUM_PAGES):
 
             current_position += 1
 
-output_path = "./MocWordDoc.docx"
+output_path = "mocs/MocWordDoc.docx"
 final_doc.save(output_path)
