@@ -60,39 +60,19 @@ jobs:
           file: ./coverage.xml
 
   security:
-    needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
 
       - name: Generate requirements.txt
         run: |
           pip install pip-tools
           pip-compile pyproject.toml --output-file=requirements.txt
 
-      - name: Run OSV scanner
-        uses: google/osv-scanner/actions/scanner@main
-        with:
-          scan-args: "--lockfile requirements.txt"
+      - uses: google/osv-scanner/actions/scanner@main
 
-  dependency-check:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.12"
-
-      - name: Install safety
-        run: |
-          python -m pip install --upgrade pip
-          pip install safety
-
-      - name: Install package
-        run: pip install -e ".[dev]"
-
-      - name: Run safety check
-        run: safety check
-        continue-on-error: true
