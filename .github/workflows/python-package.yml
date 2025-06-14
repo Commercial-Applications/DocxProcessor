@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions:
+  contents: read
+  security-events: write
+  actions: read  # Add this permission
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -59,10 +64,15 @@ jobs:
 
   security:
     needs: build
-    permissions:
-      contents: read
-      security-events: write
-    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.0.0
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Run OSV scanner
+        uses: google/osv-scanner/actions/scanner@main
+        with:
+          scan-args: --recursivewhat
+
 
   dependency-check:
     needs: build
