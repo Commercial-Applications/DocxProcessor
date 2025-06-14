@@ -72,7 +72,6 @@ jobs:
         uses: google/osv-scanner/actions/scanner@main
         with:
           scan-args: |
-            --config pyproject.toml
             --recursive
             --lockfile pyproject.toml
 
