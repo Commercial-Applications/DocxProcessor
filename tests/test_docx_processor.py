@@ -4,9 +4,9 @@ from unittest.mock import Mock
 import pytest
 from docx import Document
 
-from src.docx_processor.config import AppConfig, RuntimeConfig, TransformConfig, RegexTransform
-from src.docx_processor.processors import DocumentProcessor
-from src.docx_processor.processors.docx_indexer import DocxIndexer
+from docx_processor.config import AppConfig, RuntimeConfig, TransformConfig, RegexTransform
+from docx_processor.processors import DocumentProcessor
+from docx_processor.processors.docx_indexer import DocxIndexer
 
 
 @pytest.fixture
