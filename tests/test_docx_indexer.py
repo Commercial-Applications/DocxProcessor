@@ -6,7 +6,7 @@ import pytest
 from docx import Document
 from docx.text.paragraph import Paragraph
 
-from src.docx_processor.processors.docx_indexer import DocxIndexer
+from docx_processor.processors.docx_indexer import DocxIndexer
 
 
 @pytest.fixture
