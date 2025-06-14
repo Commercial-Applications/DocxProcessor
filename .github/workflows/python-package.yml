@@ -71,8 +71,10 @@ jobs:
       - name: Run OSV scanner
         uses: google/osv-scanner/actions/scanner@main
         with:
-          scan-args: --recursive
-
+          scan-args: |
+            --config pyproject.toml
+            --recursive
+            --lockfile pyproject.toml
 
   dependency-check:
     needs: build
