@@ -41,6 +41,9 @@ jobs:
         run: |
           flake8 src/ tests/
 
+      - name: Install package in development mode
+        run: pip install -e .
+
       - name: Test with pytest
         run: |
           pytest tests/
