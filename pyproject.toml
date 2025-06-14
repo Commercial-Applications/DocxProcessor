@@ -16,10 +16,10 @@ urls = { repository = "https://github.com/Commercial-Applications/DocxProcessor"
 
 dependencies = [
     "python-docx>=0.8.11",
-    "lxml>=4.9.0",
+    "lxml>=4.9.3",
     "pathlib>=1.0.1",
-    "click>=8.1.0,<8.2.2",
-    "pyYAML>=6.0.0"
+    "click>=8.1.0",
+    "pyYAML>=6.0.1"
 ]
 
 [project.optional-dependencies]
