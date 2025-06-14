@@ -38,7 +38,6 @@ jobs:
           mkdir -p $GITHUB_WORKSPACE/mocs
           cd $GITHUB_WORKSPACE
           python tests/wordDocMoc.py
-          mv MocWordDoc.docx mocs/
 
       - name: Check formatting with black
         run: |
