@@ -1,5 +1,6 @@
 # Create a new document without TOC or Index
 import random
+from pathlib import Path
 
 from docx import Document
 from docx.oxml import OxmlElement
@@ -132,5 +133,8 @@ for page in range(NUM_PAGES):
 
             current_position += 1
 
-output_path = "mocs/MocWordDoc.docx"
-final_doc.save(output_path)
+output_dir = Path("mocs")
+output_dir.mkdir(exist_ok=True)
+output_path = output_dir / "MocWordDoc.docx"
+final_doc.save(str(output_path))
+

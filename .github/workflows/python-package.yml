@@ -35,8 +35,8 @@ jobs:
 
       - name: Prepare test data
         run: |
-          mkdir -p $GITHUB_WORKSPACE/mocs
           cd $GITHUB_WORKSPACE
+          pip install faker python-docx
           python tests/wordDocMoc.py
 
       - name: Check formatting with black
