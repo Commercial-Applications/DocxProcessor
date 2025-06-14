@@ -64,24 +64,24 @@ jobs:
       security-events: write
     uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.0.0
 
-    dependency-check:
-      needs: build
-      runs-on: ubuntu-latest
-      steps:
-        - uses: actions/checkout@v3
-        - name: Set up Python
-          uses: actions/setup-python@v4
-          with:
-            python-version: "3.12"
+  dependency-check:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
 
-        - name: Install safety
-          run: |
-            python -m pip install --upgrade pip
-            pip install safety
+      - name: Install safety
+        run: |
+          python -m pip install --upgrade pip
+          pip install safety
 
-        - name: Install package
-          run: pip install -e ".[dev]"
+      - name: Install package
+        run: pip install -e ".[dev]"
 
-        - name: Run safety check
-          run: safety check
-          continue-on-error: true
+      - name: Run safety check
+        run: safety check
+        continue-on-error: true
