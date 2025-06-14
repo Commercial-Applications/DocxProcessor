@@ -71,7 +71,7 @@ jobs:
       - name: Run OSV scanner
         uses: google/osv-scanner/actions/scanner@main
         with:
-          scan-args: --recursivewhat
+          scan-args: --recursive
 
 
   dependency-check:
