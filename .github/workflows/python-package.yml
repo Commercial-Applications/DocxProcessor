@@ -65,12 +65,17 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - name: Generate requirements.txt
+        run: |
+          pip install pip-tools
+          pip-compile pyproject.toml --output-file=requirements.txt
+
       - name: Run OSV scanner
         uses: google/osv-scanner/actions/scanner@main
         with:
           scan-args: |
             --recursive
-            --lockfile pyproject.toml
+            --lockfile requirements.txt
 
   dependency-check:
     needs: build
