@@ -73,9 +73,7 @@ jobs:
       - name: Run OSV scanner
         uses: google/osv-scanner/actions/scanner@main
         with:
-          scan-args: |
-            --recursive
-            --lockfile requirements.txt
+          scan-args: "--lockfile requirements.txt"
 
   dependency-check:
     needs: build
