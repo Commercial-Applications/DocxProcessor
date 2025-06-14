@@ -19,7 +19,7 @@ def mock_logger():
 
 @pytest.fixture
 def test_doc_path():
-    return Path("mocs/MocWordDoc.docx")
+    return Path("data/MocWordDoc.docx")
 
 
 @pytest.fixture
