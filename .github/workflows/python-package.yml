@@ -74,5 +74,18 @@ jobs:
           pip install pip-tools
           pip-compile pyproject.toml --output-file=requirements.txt
 
-      - uses: google/osv-scanner/actions/scanner@main
+      - name: Run OSV scanner
+        id: scan
+        uses: google/osv-scanner/actions/scanner@main
+        continue-on-error: true # This allows the step to continue even if the shell script has errors
+
+      - name: Check scan results
+        run: |
+          if [[ "${{ steps.scan.outputs.stdout }}" == *"No issues found"* ]]; then
+            echo "No security vulnerabilities found"
+            exit 0
+          else
+            echo "Security vulnerabilities detected"
+            exit 1
+          fi
 
