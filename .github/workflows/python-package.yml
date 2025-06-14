@@ -61,8 +61,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Run security scan
-        uses: pypa/gh-action-pip-audit@v1.0.8
+      - name: Run OSV Scanner
+        uses: google/osv-scanner-action@v1
         with:
-          # Scan the local virtual environment where we installed the project
-          local: true
+          path: "."
