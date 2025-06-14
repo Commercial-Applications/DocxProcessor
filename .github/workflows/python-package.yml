@@ -61,8 +61,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Run OSV Scanner
-        uses: google/osv-scanner-action@v2.0.0  # Latest stable version
-        with:
-          path: "."
+      - name: Run OSV vulnerability scan
+        uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.0.0
+
 
