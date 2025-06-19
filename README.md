@@ -45,7 +45,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Installation
 
-pip install git+https://github.com/Commercial-Applications/docx-processor.git
+pip install git+https://github.com/Commercial-Applications/DocxProcessor.git
 
 
 ## Options
