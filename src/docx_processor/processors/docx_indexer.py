@@ -21,7 +21,7 @@ class DocxIndexer:
 
         # Check if paragraph is None or doesn't have _element
         if para is None or not hasattr(para, "_element") or para._element is None:
-            self.logging.warning(f"**The above link embeded in a table: {para}")
+            self.logging.warning(f"**Invalid Paragraph Returned: {para}")
             return f"invalid_paragraph_{id(para)}"
 
         # Try to get the w14:paraId first
@@ -54,6 +54,22 @@ class DocxIndexer:
                     rId_value = element.get(f'{{{element.nsmap["r"]}}}id')
                     if rId_value:
                         self.rId_to_paragraph[rId_value] = para
+        # Index paragraphs in tables
+        for table in self.doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for para in cell.paragraphs:
+                        # Add table paragraphs to the index
+                        para_id = self._get_paragraph_id(para)
+                        # Use a high index to ensure they come after regular paragraphs
+                        self.paragraph_index[para_id] = len(self.doc.paragraphs) + len(self.paragraph_index)
+
+                        for element in para._element.iter():
+                            if element.tag.endswith("hyperlink"):
+                                rId_value = element.get(f'{{{element.nsmap["r"]}}}id')
+                                if rId_value:
+                                    self.rId_to_paragraph[rId_value] = para
+
 
     def find_paragraph_by_rId(self, rId: str) -> Optional[Paragraph]:
         """

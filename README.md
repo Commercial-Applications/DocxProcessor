@@ -1,3 +1,12 @@
+# DocxProcessor
+
+[![GitHub release (latest by date)](https://img.shields.io/github/v/release/Commercial-Applications/DocxProcessor)](https://github.com/Commercial-Applications/DocxProcessor/releases)
+[![License](https://img.shields.io/github/license/Commercial-Applications/DocxProcessor)](https://github.com/Commercial-Applications/DocxProcessor/blob/main/LICENSE)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Tests](https://github.com/Commercial-Applications/DocxProcessor/actions/workflows/python-package.yml/badge.svg?branch=v2.1.0-logging-and-test-framework)](https://github.com/Commercial-Applications/DocxProcessor/actions/workflows/python-package.yml)
+[![Security Check](https://github.com/Commercial-Applications/DocxProcessor/actions/workflows/security.yml/badge.svg)](https://github.com/Commercial-Applications/DocxProcessor/actions/workflows/security.yml)
+
+
 ## Requires
 
 * python-dox

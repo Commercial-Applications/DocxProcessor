@@ -22,6 +22,21 @@ class DocumentProcessor:
         )
         self.current_heading = None
 
+    def _is_in_table(self, paragraph):
+        """Check if the paragraph is inside a table cell."""
+        if not paragraph or not hasattr(paragraph, "_element"):
+            return False
+
+        parent = paragraph._element.getparent()
+        depth = 0
+        while parent is not None and depth < 10:  # Add depth limit to prevent infinite loops
+            self.logger.debug(f"Checking parent tag: {parent.tag}")
+            if parent.tag.endswith("tc"):  # tc = table cell
+                return True
+            parent = parent.getparent()
+            depth += 1
+        return False
+
     def _rel_hyperlinks(self, element: Document, modify_func: Callable[[str], str], doc_index) -> None:
         """Process a section of the document for URL modifications."""
         # Process hyperlinks in relationships
@@ -34,11 +49,19 @@ class DocumentProcessor:
                     original_url = rel.target_ref
                     if self.url_pattern.search(original_url):
                         para = doc_index.find_paragraph_by_rId(rel_id)
-                        closest_heading = doc_index.find_closest_heading_above(para)
-                        self.logger.extra["location"] = closest_heading if closest_heading else ""
-                        self.logger.extra["match"] = "True"
-                        new_url = modify_func(original_url)
-                        self.logger.info(f"{rel.target_ref} -> {new_url}")
+                        self.logger.debug(f"Paragraph:: {para.text}")
+                        if para and self._is_in_table(para):
+                            self.logger.extra["location"] = "Table"
+                            self.logger.extra["match"] = "True"
+                            new_url = modify_func(original_url)
+                            self.logger.info(f"TABLE: {rel.target_ref} -> {new_url}")
+                        else:
+                            closest_heading = doc_index.find_closest_heading_above(para)
+                            self.logger.extra["location"] = closest_heading if closest_heading else ""
+                            self.logger.extra["match"] = "True"
+                            new_url = modify_func(original_url)
+                            self.logger.info(f"{rel.target_ref} -> {new_url}")
+
                         self.logger.extra["match"] = "False"
                         rel._target = new_url
 
@@ -119,12 +142,16 @@ class DocumentProcessor:
         )
         for para in element.paragraphs:
             for regex in transforms:
-                if re.search(regex.from_pattern, para.text):
+                matches = len(re.findall(regex.from_pattern, para.text))
+                if matches > 0:
                     self.logger.extra["match"] = "True"
                     closest_heading = doc_index.find_closest_heading_above(para)
                     self.logger.extra["location"] = closest_heading
                     trunc_para_text = (para.text[:47] + "...") if len(para.text) > 50 else para.text
-                    self.logger.info(f"Match: '{regex.from_pattern}' at paragraph '{trunc_para_text}'")
+                    self.logger.info(
+                        f"Match: {matches} {'matches' if matches > 1 else 'match'} "
+                        f"for {regex.from_pattern}' at paragraph: '{trunc_para_text}'"
+                    )
                     self.logger.extra["match"] = "False"
 
         return None
@@ -139,7 +166,7 @@ class DocumentProcessor:
             self.logger.extra.update({"section": "NA", "module": "process_document"})
 
             doc_index = DocxIndexer(doc, self.logger)
-            self.logger.debug("--Index Document --")
+            self.logger.debug("-- Index Document --")
             self.logger.debug("-- Start Processing --")
 
             # Check for non standard Hyperlinks and Log

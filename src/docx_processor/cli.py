@@ -134,6 +134,7 @@ def validate(ctx: click.Context):
     This command performs a dry-run validation of the configuration,
     checking that all paths exist and patterns are valid.
     """
+
     config = ctx.obj["config"]
     click.echo("Configuration validation:")
     click.echo(f"  Version: {__version__}")
