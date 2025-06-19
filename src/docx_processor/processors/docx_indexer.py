@@ -37,7 +37,8 @@ class DocxIndexer:
         # Last resort: use combination of properties
         return f"{para.text}|{para.style.name if para.style else ''}|{id(para._element)}"
 
-    def _build_index(self):
+    # TODO Simplify this method (flake8)
+    def _build_index(self):  # noqa: C901
         for i, para in enumerate(self.doc.paragraphs):
             para_id = self._get_paragraph_id(para)
             self.paragraph_index[para_id] = i
