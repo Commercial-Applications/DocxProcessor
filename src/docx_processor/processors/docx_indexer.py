@@ -56,7 +56,7 @@ class DocxIndexer:
                     if rId_value:
                         self.rId_to_paragraph[rId_value] = para
         # Index paragraphs in tables
-        if hasattr(self.doc, 'tables'):
+        if hasattr(self.doc, "tables"):
             for table in self.doc.tables:
                 for row in table.rows:
                     for cell in row.cells:
