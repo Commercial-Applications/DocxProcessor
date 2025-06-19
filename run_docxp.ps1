@@ -21,11 +21,13 @@ $arguments = @(
 )
 
 # Execute the command
-try {
+try
+{
     $process = Start-Process -FilePath "docx-processor" -ArgumentList $arguments -NoNewWindow -Wait -PassThru
     exit $process.ExitCode
 }
-catch {
+catch
+{
     Write-Error "Error executing docx-processor: $_"
     exit 1
 }

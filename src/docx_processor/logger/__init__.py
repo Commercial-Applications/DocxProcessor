@@ -1,10 +1,11 @@
 """
 Logging package initialization.
 """
-import logging
-from .docx import DocxLogger
+
 from .context import ContextLoggerAdapter
 from .custom_formatter import CustomFormatter
+from .docx import DocxLogger
+
 
 def setup_logger(config):
     """Create and configure a logger instance."""
@@ -18,18 +19,19 @@ def setup_logger(config):
         adjusted_level = max(logging.DEBUG, base_level - (config.runtime.verbose * 10))
         config.runtime.log_level = logging.getLevelName(adjusted_level)
 
-    logger = DocxLogger(
-        log_file=config.runtime.log_file,
-        level=LOG_LEVEL_MAP[config.runtime.log_level]
+    logger = DocxLogger(log_file=config.runtime.log_file, level=LOG_LEVEL_MAP[config.runtime.log_level])
+
+    return ContextLoggerAdapter(
+        logger,
+        {
+            "document_name": "",
+            "document_full_path": "",
+            "section": "",
+            "module": "",
+            "location": "No Heading",
+            "match": "False",
+        },
     )
 
-    return ContextLoggerAdapter(logger, {
-        'document_name': '',
-        'document_full_path': '',
-        'section': '',
-        'module': '',
-        'location': 'No Heading',
-        'match': 'False'
-    })
 
-__all__ = ['DocxLogger', 'setup_logger', 'ContextLoggerAdapter', 'CustomFormatter']
+__all__ = ["DocxLogger", "setup_logger", "ContextLoggerAdapter", "CustomFormatter"]

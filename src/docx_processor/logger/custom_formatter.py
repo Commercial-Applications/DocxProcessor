@@ -1,7 +1,7 @@
 import logging
 
-class CustomFormatter(logging.Formatter):
 
+class CustomFormatter(logging.Formatter):
     grey = "\x1b[38;20m"
     yellow = "\x1b[33;20m"
     red = "\x1b[31;20m"
@@ -22,8 +22,8 @@ class CustomFormatter(logging.Formatter):
     }
 
     def format(self, record):
-        if not hasattr(record, 'location'):
-            record.location = 'No Heading'
+        if not hasattr(record, "location"):
+            record.location = "No Heading"
 
         log_fmt = self.FORMATS.get(record.levelno)
         formatter = logging.Formatter(log_fmt, datefmt=self.DATE_FORMAT)
