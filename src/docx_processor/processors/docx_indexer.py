@@ -70,7 +70,6 @@ class DocxIndexer:
                                 if rId_value:
                                     self.rId_to_paragraph[rId_value] = para
 
-
     def find_paragraph_by_rId(self, rId: str) -> Optional[Paragraph]:
         """
         Retrieves a Paragraph object by its rId from the index.
