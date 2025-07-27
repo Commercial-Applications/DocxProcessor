@@ -2,9 +2,8 @@ name: DocxProcessor CI
 
 on:
   push:
-    branches: [ v2.1.0-logging-and-test-framework ]
-  pull_request:
-    branches: [ main ]
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
 
 permissions:
   contents: read
