@@ -171,7 +171,6 @@ class DocumentProcessor:
 
             # Check for non standard Hyperlinks and Log
             self.logger.debug("Starting Non-Rel-URL Identification")
-
             non_rel_hyperlinks(self.logger, input_path)
             # TODO Several of these have to itterate Paragraphs so makes sense to do them in one block
             if self.config.transform.url_transforms:
@@ -197,4 +196,4 @@ class DocumentProcessor:
 
         except Exception as e:
             self.logger.extra["task"] = "ERROR"
-            self.logger.exception(f"Failed to process {input_path} with error: {e}")
+            self.logger.error(f"Failed to process {input_path} with error: {str(e).split(':')[0]}")
