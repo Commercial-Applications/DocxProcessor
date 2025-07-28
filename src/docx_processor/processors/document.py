@@ -1,11 +1,9 @@
 import re
 from pathlib import Path
-from typing import Callable
 
 from docx import Document
 from docx.opc.constants import RELATIONSHIP_TYPE as RT
 
-from docx_processor.utils import non_rel_hyperlinks
 from .docx_indexer import DocxIndexer
 
 
@@ -13,10 +11,10 @@ class DocumentProcessor:
     def __init__(self, config, logger):
         self.config = config
         self.logger = logger
-        self.url_pattern = re.compile(self.config.transform.url_transforms[0].from_pattern, re.IGNORECASE)
-        # TODO: Loop through Multiple Regexs - Set to the first at the min.
-
-        # Initialize base logger context that will be constant for this document processor
+        self.url_patterns = [
+            (re.compile(transform.from_pattern, re.IGNORECASE), transform.to_pattern)
+            for transform in self.config.transform.url_transforms
+        ]
         self.logger.extra.update(
             {"location": "", "section": "", "document_name": "", "document_full_path": "", "module": __name__}
         )
@@ -37,48 +35,49 @@ class DocumentProcessor:
             depth += 1
         return False
 
-    def _rel_hyperlinks(self, element: Document, modify_func: Callable[[str], str], doc_index) -> None:
+    def _rel_hyperlinks(self, element: Document, doc_index) -> None:
         """Process a section of the document for URL modifications."""
         # Process hyperlinks in relationships
         self.logger.extra.update({"module": "rel_hyperlinks", "task": "rel_URLs"})
 
-        # Itterates Over
         if hasattr(element.part, "rels"):
             for rel_id, rel in element.part.rels.items():
                 if rel.reltype == RT.HYPERLINK:
                     original_url = rel.target_ref
-                    if self.url_pattern.search(original_url):
-                        para = doc_index.find_paragraph_by_rId(rel_id)
-                        self.logger.debug(f"Paragraph:: {para.text}")
-                        if para and self._is_in_table(para):
-                            self.logger.extra["location"] = "Table"
-                            self.logger.extra["match"] = "True"
-                            new_url = modify_func(original_url)
-                            self.logger.info(f"TABLE: {rel.target_ref} -> {new_url}")
-                        else:
-                            closest_heading = doc_index.find_closest_heading_above(para)
-                            self.logger.extra["location"] = closest_heading if closest_heading else ""
-                            self.logger.extra["match"] = "True"
-                            new_url = modify_func(original_url)
-                            self.logger.info(f"{rel.target_ref} -> {new_url}")
+                    for pattern, replacement in self.url_patterns:
+                        if pattern.search(original_url):
+                            para = doc_index.find_paragraph_by_rId(rel_id)
+                            self.logger.debug(f"Paragraph:: {para.text}")
+                            if para and self._is_in_table(para):
+                                self.logger.extra["location"] = "Table"
+                                self.logger.extra["match"] = "True"
+                                new_url = pattern.sub(replacement, original_url)
+                                self.logger.info(f"TABLE: {rel.target_ref} -> {new_url}")
+                            else:
+                                closest_heading = doc_index.find_closest_heading_above(para)
+                                self.logger.extra["location"] = closest_heading if closest_heading else ""
+                                self.logger.extra["match"] = "True"
+                                new_url = pattern.sub(replacement, original_url)
+                                self.logger.info(f"{rel.target_ref} -> {new_url}")
 
-                        self.logger.extra["match"] = "False"
-                        rel._target = new_url
+                            self.logger.extra["match"] = "False"
+                            rel._target = new_url
 
-    def _para_hyperlinks(self, element: Document, modify_func: Callable[[str], str], doc_index) -> None:
+    def _para_hyperlinks(self, element: Document, doc_index) -> None:
         self.logger.extra.update({"module": "para_hyperlinks", "task": "para_URLs"})
         for para in element.paragraphs:
             for hyperlink in para.hyperlinks:
                 for runs in hyperlink.runs:
                     original_url = runs.text
-                    if self.url_pattern.search(original_url):
-                        new_url = modify_func(original_url)
-                        closest_heading = doc_index.find_closest_heading_above(para)
-                        self.logger.extra["location"] = closest_heading if closest_heading else ""
-                        self.logger.extra["match"] = "True"
-                        self.logger.info(f"{runs.text} -> {new_url}")
-                        self.logger.extra["match"] = "False"
-                        runs.text = new_url
+                    for pattern, replacement in self.url_patterns:
+                        if pattern.search(original_url):
+                            new_url = pattern.sub(replacement, original_url)
+                            closest_heading = doc_index.find_closest_heading_above(para)
+                            self.logger.extra["location"] = closest_heading if closest_heading else ""
+                            self.logger.extra["match"] = "True"
+                            self.logger.info(f"{runs.text} -> {new_url}")
+                            self.logger.extra["match"] = "False"
+                            runs.text = new_url
                         # Does Not Modify url
 
     def transform_urls(self, doc: Document, doc_index) -> None:
@@ -86,32 +85,20 @@ class DocumentProcessor:
         Modify URLs in the document.
         There are 2 types or URL's Relationship and Paragraph
         There are 3 Broad locations Headers(multiple), Footers(multiple) and Body
-        TODO: Add Tables
         """
         # Process body text
         self.logger.extra["section"] = "Body"
-        self._rel_hyperlinks(doc, self._url_replace_regex, doc_index)  # Type A
-        self._para_hyperlinks(doc, self._url_replace_regex, doc_index)  # Type B
+        self._rel_hyperlinks(doc, doc_index)  # Type A
+        self._para_hyperlinks(doc, doc_index)  # Type B
 
         # Process headers and footers
         for idx, section in enumerate(doc.sections):
             self.logger.extra["section"] = "Header"
-            self._rel_hyperlinks(section.header, self._url_replace_regex, doc_index)  # Type A
-            self._para_hyperlinks(section.header, self._url_replace_regex, doc_index)  # Type A
+            self._rel_hyperlinks(section.header, doc_index)  # Type A
+            self._para_hyperlinks(section.header, doc_index)  # Type A
 
             self.logger.extra["section"] = "Footer"
-            self._rel_hyperlinks(section.footer, self._url_replace_regex, doc_index)  # Type A
-
-    def _url_replace_regex(self, original_url: str) -> str:
-        """Replace URLs according to the configured pattern."""
-        from_domain = self.config.transform.url_transforms[0].from_pattern
-        to_domain = self.config.transform.url_transforms[0].to_pattern
-
-        def www_addition(match):
-            prefix = match.group(1) or ""
-            return prefix + to_domain
-
-        return re.sub(from_domain, www_addition, original_url, flags=re.IGNORECASE)
+            self._rel_hyperlinks(section.footer, doc_index)  # Type A
 
     def transform_styles(self, doc: Document) -> None:
         """Change style names according to configuration."""
@@ -170,8 +157,8 @@ class DocumentProcessor:
             self.logger.debug("-- Start Processing --")
 
             # Check for non standard Hyperlinks and Log
-            self.logger.debug("Starting Non-Rel-URL Identification")
-            non_rel_hyperlinks(self.logger, input_path)
+            # self.logger.debug("Starting Non-Rel-URL Identification")
+            # non_rel_hyperlinks(self.logger, input_path)
             # TODO Several of these have to itterate Paragraphs so makes sense to do them in one block
             if self.config.transform.url_transforms:
                 self.logger.extra["task"] = "hyperlinks"

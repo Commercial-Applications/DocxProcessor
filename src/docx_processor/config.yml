@@ -1,7 +1,7 @@
 # transforms.yaml
 url_transforms:
-  - from: "(www\\.)?south32" # I have removed the .net to make this work for sharepoint which is OK for the report
-    to: "gm3.au" # www not required
+  - from: "(www\\.)?south32.net"
+    to: "\\1gm3.au" # www not required
   - from: "south32.sharepoint" # Will need to itterate to get this working.
     to: "gm3global.sharepoint"
 text_transforms:
