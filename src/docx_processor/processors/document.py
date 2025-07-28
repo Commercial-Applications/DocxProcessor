@@ -11,11 +11,10 @@ class DocumentProcessor:
     def __init__(self, config, logger):
         self.config = config
         self.logger = logger
-        self.url_patterns = [(re.compile(transform.from_pattern, re.IGNORECASE), transform.to_pattern)
-                             for transform in self.config.transform.url_transforms]
-#        self.url_pattern = re.compile(self.config.transform.url_transforms[0].from_pattern, re.IGNORECASE)
-
-        # Initialize base logger context that will be constant for this document processor
+        self.url_patterns = [
+            (re.compile(transform.from_pattern, re.IGNORECASE), transform.to_pattern)
+            for transform in self.config.transform.url_transforms
+        ]
         self.logger.extra.update(
             {"location": "", "section": "", "document_name": "", "document_full_path": "", "module": __name__}
         )
