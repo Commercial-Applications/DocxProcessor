@@ -2,7 +2,7 @@
 url_transforms:
   - from: "(www\\.)?south32.net"
     to: "\\1gm3.au" # www not required
-  - from: "south32.sharepoint" # Will need to itterate to get this working.
+  - from: "south32.sharepoint"
     to: "gm3global.sharepoint"
 text_transforms:
   - from: "South\\s?32"
@@ -12,3 +12,7 @@ text_transforms:
 style_transforms:
   - from: "Glencore"
     to: "GM3"
+drop_matches:
+  - "Updated South32 to GM3 branding" # Normalised to GM3 don't use superscript here
+  - "South32 format"
+  - "Update to South32 Template"
