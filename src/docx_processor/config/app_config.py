@@ -20,6 +20,7 @@ class TransformConfig:
     url_transforms: List[RegexTransform]
     text_transforms: List[RegexTransform]
     style_transforms: List[RegexTransform]
+    drop_matches: List[str]
 
     @classmethod
     def from_yaml(cls, config_path: Path) -> "TransformConfig":
@@ -30,6 +31,7 @@ class TransformConfig:
             url_transforms=[RegexTransform(t["from"], t["to"]) for t in config_data.get("url_transforms", [])],
             text_transforms=[RegexTransform(t["from"], t["to"]) for t in config_data.get("text_transforms", [])],
             style_transforms=[RegexTransform(t["from"], t["to"]) for t in config_data.get("style_transforms", [])],
+            drop_matches=config_data.get("drop_matches", []),
         )
 
 

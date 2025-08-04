@@ -42,6 +42,7 @@ def mock_config():
         ],
         text_transforms=[RegexTransform(from_pattern=r"FindMe\d", to_pattern="Found")],
         style_transforms=[],
+        drop_matches=[],
     )
 
     return AppConfig(transform=transform_config, runtime=runtime_config)

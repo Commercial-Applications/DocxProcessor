@@ -1,6 +1,6 @@
 [flake8]
 max-line-length = 120
-extend-ignore = E203
+extend-ignore = E203,C901
 
 # Other common settings:
 exclude = .git,__pycache__,build,dist,*.egg-info

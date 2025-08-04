@@ -1,6 +1,7 @@
 import re
 from pathlib import Path
 
+import unicodedata
 from docx import Document
 from docx.opc.constants import RELATIONSHIP_TYPE as RT
 
@@ -120,26 +121,69 @@ class DocumentProcessor:
                     )
                     self.logger.extra["match"] = "False"
 
+    def _should_drop_match(self, text):
+        """Check if text matches any drop patterns."""
+        text = unicodedata.normalize("NFKC", text.strip()).lower()
+
+        for pattern in self.config.transform.drop_matches:
+            normalized_pattern = unicodedata.normalize("NFKC", pattern.strip()).lower()
+
+            if normalized_pattern in text:
+                self.logger.debug(f"Dropping match for text: '{text[:50]}...'")
+                return True
+        return False
+
     def transform_text(self, element: Document, doc_index, transforms):
+        """Transform text in document according to configured patterns."""
         self.logger.extra.update(
             {
                 "section": "Body",
                 "module": "transform_text",
             }
         )
+
+        def _get_consolidated_text(paragraph):
+            return "".join(run.text for run in paragraph.runs)
+
+        def process_paragraph(para, regex):
+            para_text = _get_consolidated_text(para)
+
+            # Check if we should drop this paragraph BEFORE checking for matches
+            if self._should_drop_match(para_text):
+                self.logger.debug(f"Dropping match for text: '{para_text[:50]}...'")
+                return
+
+            # First see if there are any matches
+            matches = len(re.findall(regex.from_pattern, para_text))
+
+            if matches > 0:
+                # Only if we shouldn't drop it, proceed with logging
+                trunc_para_text = (para_text[:47] + "...") if len(para_text) > 50 else para_text
+                if para and self._is_in_table(para):
+                    self.logger.extra["location"] = "Table"
+                else:
+                    closest_heading = doc_index.find_closest_heading_above(para)
+                    self.logger.extra["location"] = closest_heading if closest_heading else ""
+
+                self.logger.extra["match"] = "True"
+                self.logger.info(
+                    f"Match: {matches} {'matches' if matches > 1 else 'match'} "
+                    f"for {regex.from_pattern}' at paragraph: '{trunc_para_text}'"
+                )
+                self.logger.extra["match"] = "False"
+
+        # Process paragraphs in document body
         for para in element.paragraphs:
             for regex in transforms:
-                matches = len(re.findall(regex.from_pattern, para.text))
-                if matches > 0:
-                    self.logger.extra["match"] = "True"
-                    closest_heading = doc_index.find_closest_heading_above(para)
-                    self.logger.extra["location"] = closest_heading
-                    trunc_para_text = (para.text[:47] + "...") if len(para.text) > 50 else para.text
-                    self.logger.info(
-                        f"Match: {matches} {'matches' if matches > 1 else 'match'} "
-                        f"for {regex.from_pattern}' at paragraph: '{trunc_para_text}'"
-                    )
-                    self.logger.extra["match"] = "False"
+                process_paragraph(para, regex)
+
+        # Process paragraphs in tables
+        for table in element.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for para in cell.paragraphs:
+                        for regex in transforms:
+                            process_paragraph(para, regex)
 
         return None
         # TODO: Add Text Transformation
