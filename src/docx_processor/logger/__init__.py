@@ -29,6 +29,7 @@ def setup_logger(config):
             "section": "",
             "module": "",
             "location": "No Heading",
+            "table_row": "",
             "match": "False",
         },
     )

@@ -7,7 +7,7 @@ from .custom_formatter import CustomFormatter
 
 
 class DocxLogger:
-    CSV_HEADERS = "Timestamp,Level,Path,Document,Section,Module,Location,Task,Match,Message\n"
+    CSV_HEADERS = "Timestamp,Level,Path,Document,Section,Module,Location,Table#->Row#,Task,Match,Message\n"
 
     def __init__(self, log_file: Optional[Path] = None, level: int = logging.DEBUG):
         self._logger = logging.getLogger(__name__)
