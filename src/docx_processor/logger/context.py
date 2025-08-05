@@ -21,6 +21,7 @@ class ContextLoggerAdapter(logging.LoggerAdapter):
             self._escape_csv(ctx.get("section", "unknown")),
             self._escape_csv(ctx.get("module", "unknown")),
             self._escape_csv(ctx.get("location", "unknown")),
+            self._escape_csv(ctx.get("table_row", "unknown")),
             self._escape_csv(ctx.get("task", "unknown")),
             self._escape_csv(ctx.get("match", "unknown")),
             self._escape_csv(msg),

@@ -142,50 +142,65 @@ class DocumentProcessor:
             }
         )
 
-        def _get_consolidated_text(paragraph):
-            return "".join(run.text for run in paragraph.runs)
+        processed_cells = set()  # Track processed cells by their internal ID
 
-        def process_paragraph(para, regex):
-            para_text = _get_consolidated_text(para)
+        def process_paragraph(para, cell=None):
+            # Skip if this paragraph is in a cell we've already processed
+            #        if cell and cell._tc in processed_cells:
+            #            return False
 
-            # Check if we should drop this paragraph BEFORE checking for matches
+            para_text = "".join(run.text for run in para.runs)
+            self.logger.debug(f"Paragraph Text: {para.text}")
+
             if self._should_drop_match(para_text):
-                self.logger.debug(f"Dropping match for text: '{para_text[:50]}...'")
-                return
+                return False
 
-            # First see if there are any matches
-            matches = len(re.findall(regex.from_pattern, para_text))
+            found_match = False
+            for regex in transforms:
+                matches = len(re.findall(regex.from_pattern, para_text))
+                if matches > 0:
+                    if not found_match:
+                        trunc_para_text = (para_text[:47] + "...") if len(para_text) > 50 else para_text
 
-            if matches > 0:
-                # Only if we shouldn't drop it, proceed with logging
-                trunc_para_text = (para_text[:47] + "...") if len(para_text) > 50 else para_text
-                if para and self._is_in_table(para):
-                    self.logger.extra["location"] = "Table"
-                else:
-                    closest_heading = doc_index.find_closest_heading_above(para)
-                    self.logger.extra["location"] = closest_heading if closest_heading else ""
+                        if para and self._is_in_table(para):
+                            self.logger.extra["location"] = "Table"
+                        else:
+                            closest_heading = doc_index.find_closest_heading_above(para)
+                            self.logger.extra["location"] = closest_heading if closest_heading else ""
+                        self.logger.extra["match"] = "True"
+                        self.logger.info(
+                            f"Match: {matches} {'matches' if matches > 1 else 'match'} "
+                            f"for {regex.from_pattern}' at paragraph: '{trunc_para_text}'"
+                        )
+                        self.logger.extra["match"] = "False"
+                        self.logger.extra["table_row"] = ""
+                        found_match = True
 
-                self.logger.extra["match"] = "True"
-                self.logger.info(
-                    f"Match: {matches} {'matches' if matches > 1 else 'match'} "
-                    f"for {regex.from_pattern}' at paragraph: '{trunc_para_text}'"
-                )
-                self.logger.extra["match"] = "False"
+            return found_match
 
         # Process paragraphs in document body
         for para in element.paragraphs:
-            for regex in transforms:
-                process_paragraph(para, regex)
+            process_paragraph(para)
 
         # Process paragraphs in tables
+        table_no = 0
         for table in element.tables:
+            table_no += 1
+            row_no = 0
             for row in table.rows:
+                row_no += 1
                 for cell in row.cells:
-                    for para in cell.paragraphs:
-                        for regex in transforms:
-                            process_paragraph(para, regex)
+                    self.logger.extra["table_row"] = f"{table_no}->{row_no}"
+                    # Mark this cell as processed
+                    if cell._tc not in processed_cells:
+                        processed_cells.add(cell._tc)
+                        for para in cell.paragraphs:
+                            self.logger.debug(f"In Tables {cell._tc} {para.text} {cell.text}")
+                            process_paragraph(para, cell)
 
+        self.logger.extra["table_row"] = ""
         return None
+
         # TODO: Add Text Transformation
 
     def process_document(self, input_path: Path, output_path: Path) -> None:
