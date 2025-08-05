@@ -190,7 +190,7 @@ class DocumentProcessor:
             for row in table.rows:
                 row_no += 1
                 for cell in row.cells:
-                    self.logger.extra["table_row"] = f"{table_no}->{row_no}"
+                    self.logger.extra["table_row"] = f"{table_no}|{row_no}"
                     # Mark this cell as processed
                     if cell._tc not in processed_cells:
                         processed_cells.add(cell._tc)
