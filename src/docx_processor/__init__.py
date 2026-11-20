@@ -11,7 +11,18 @@ from .processors import DocxIndexer
 from .processors.batch import BatchProcessor
 from .processors.document import DocumentProcessor
 from .version import __version__
-from .cli import process_documents  # noqa: E402 - library entry point (imports the modules above)
+
+
+def __getattr__(name):
+    # process_documents lives in .cli. Importing it lazily keeps `python -m docx_processor.cli`
+    # from loading cli twice (once via this package, once as __main__), which triggers a
+    # runpy RuntimeWarning.
+    if name == "process_documents":
+        from .cli import process_documents
+
+        return process_documents
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __author__ = "Sean Smith"
 __copyright__ = "Copyright (c) 2024 Sean Smith"

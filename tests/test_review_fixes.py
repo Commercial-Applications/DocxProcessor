@@ -3,6 +3,8 @@
 import io
 import logging
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -254,6 +256,18 @@ class TestCli:
         result = self.invoke(tmp_path, "text_transforms:\n  - from: 'South32'\n    to: GM3\n", "validate")
         assert result.exit_code == 0, result.output
         assert "1 .docx file(s) found" in result.output and "valid! ✓" in result.output
+
+    @pytest.mark.parametrize("module", ["docx_processor.cli", "docx_processor"])
+    def test_python_dash_m_runs_without_warnings(self, module):
+        # Importing cli from the package __init__ made `python -m docx_processor.cli` load cli twice.
+        result = subprocess.run(
+            [sys.executable, "-W", "error::RuntimeWarning", "-m", module, "--help"],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, result.stderr
+        assert result.stderr == ""
+        assert "validate" in result.stdout
 
 
 class TestErrorsAndConsole:
