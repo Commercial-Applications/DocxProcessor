@@ -47,8 +47,13 @@ class DocumentProcessor:
                     original_url = rel.target_ref
                     for pattern, replacement in self.url_patterns:
                         if pattern.search(original_url):
-                            para = doc_index.find_paragraph_by_rId(rel_id)
-                            self.logger.debug(f"Paragraph:: {para.text}")
+                            # rIds are scoped per part; the index only covers the main document body,
+                            # so a header/footer rId must not be looked up there (it could hit a body link).
+                            para = (
+                                doc_index.find_paragraph_by_rId(rel_id) if element.part is doc_index.doc.part else None
+                            )
+                            if para is not None:
+                                self.logger.debug(f"Paragraph:: {para.text}")
                             if para and self._is_in_table(para):
                                 self.logger.extra["location"] = "Table"
                                 self.logger.extra["match"] = "True"
@@ -92,14 +97,23 @@ class DocumentProcessor:
         self._rel_hyperlinks(doc, doc_index)  # Type A
         self._para_hyperlinks(doc, doc_index)  # Type B
 
-        # Process headers and footers
-        for idx, section in enumerate(doc.sections):
-            self.logger.extra["section"] = "Header"
-            self._rel_hyperlinks(section.header, doc_index)  # Type A
-            self._para_hyperlinks(section.header, doc_index)  # Type A
-
-            self.logger.extra["section"] = "Footer"
-            self._rel_hyperlinks(section.footer, doc_index)  # Type A
+        # Process headers and footers (default, first-page and even-page variants).
+        # Skip linked ones: they reuse a prior section's part (already processed), and for the first section
+        # touching an undefined header/footer makes python-docx add an empty one to the document.
+        for section in doc.sections:
+            for label, header_footer in (
+                ("Header", section.header),
+                ("First Page Header", section.first_page_header),
+                ("Even Page Header", section.even_page_header),
+                ("Footer", section.footer),
+                ("First Page Footer", section.first_page_footer),
+                ("Even Page Footer", section.even_page_footer),
+            ):
+                if header_footer.is_linked_to_previous:
+                    continue
+                self.logger.extra["section"] = label
+                self._rel_hyperlinks(header_footer, doc_index)  # Type A
+                self._para_hyperlinks(header_footer, doc_index)  # Type B
 
     def transform_styles(self, doc: Document) -> None:
         """Change style names according to configuration."""
@@ -116,8 +130,8 @@ class DocumentProcessor:
                     style.name = transform.to_pattern
                     self.logger.extra["match"] = "True"
                     self.logger.info(
-                        f"Table Style {transform.from_pattern} Found.. Converting, /"
-                        f"{transform.from_pattern} → {transform.new_pattern}"
+                        f"Style {transform.from_pattern} found. Renaming: "
+                        f"{transform.from_pattern} → {transform.to_pattern}"
                     )
                     self.logger.extra["match"] = "False"
 
@@ -157,24 +171,31 @@ class DocumentProcessor:
 
             found_match = False
             for regex in transforms:
-                matches = len(re.findall(regex.from_pattern, para_text))
+                pattern = re.compile(regex.from_pattern)
+                matches = len(pattern.findall(para_text))
                 if matches > 0:
-                    if not found_match:
-                        trunc_para_text = (para_text[:47] + "...") if len(para_text) > 50 else para_text
+                    trunc_para_text = (para_text[:47] + "...") if len(para_text) > 50 else para_text
 
+                    if not found_match:
                         if para and self._is_in_table(para):
                             self.logger.extra["location"] = "Table"
                         else:
                             closest_heading = doc_index.find_closest_heading_above(para)
                             self.logger.extra["location"] = closest_heading if closest_heading else ""
-                        self.logger.extra["match"] = "True"
-                        self.logger.info(
-                            f"Match: {matches} {'matches' if matches > 1 else 'match'} "
-                            f"for {regex.from_pattern}' at paragraph: '{trunc_para_text}'"
-                        )
-                        self.logger.extra["match"] = "False"
-                        self.logger.extra["table_row"] = ""
                         found_match = True
+
+                    self.logger.extra["match"] = "True"
+                    self.logger.info(
+                        f"Match: {matches} {'matches' if matches > 1 else 'match'} "
+                        f"for '{regex.from_pattern}' at paragraph: '{trunc_para_text}'"
+                    )
+
+                    if not self.config.runtime.find_only:
+                        replaced = self._replace_in_runs(para.runs, pattern, regex.to_pattern)
+                        para_text = "".join(run.text for run in para.runs)
+                        self.logger.info(f"Replaced {replaced} with '{regex.to_pattern}'")
+
+                    self.logger.extra["match"] = "False"
 
             return found_match
 
@@ -201,10 +222,43 @@ class DocumentProcessor:
         self.logger.extra["table_row"] = ""
         return None
 
-        # TODO: Add Text Transformation
+    @staticmethod
+    def _replace_in_runs(runs, pattern, replacement) -> int:
+        """Replace regex matches in a paragraph's runs, preserving run formatting where possible.
 
-    def process_document(self, input_path: Path, output_path: Path) -> None:
-        """Process a single document."""
+        A match may span several runs (Word splits text on formatting, spell-check, edits, ...).
+        The replacement text is placed in the run where the match starts, keeping that run's
+        formatting, and the matched text is removed from the following runs. Returns the
+        number of replacements made.
+        """
+        full_text = "".join(run.text for run in runs)
+        matches = [m for m in pattern.finditer(full_text) if m.end() > m.start()]
+
+        # Work backwards so the offsets of earlier matches stay valid as text changes.
+        for match in reversed(matches):
+            start, end = match.span()
+            new_text = match.expand(replacement)
+
+            run_start = 0
+            for run in runs:
+                text = run.text
+                run_end = run_start + len(text)
+                if run_end > start and run_start < end:
+                    local_start = max(start - run_start, 0)
+                    local_end = min(end - run_start, len(text))
+                    if run_start <= start:
+                        # First run of the match receives the replacement text.
+                        run.text = text[:local_start] + new_text + text[local_end:]
+                    else:
+                        run.text = text[local_end:]
+                run_start = run_end
+                if run_start >= end:
+                    break
+
+        return len(matches)
+
+    def process_document(self, input_path: Path, output_path: Path) -> bool:
+        """Process a single document. Returns True on success, False if it failed."""
         self.logger.extra.update({"document_name": input_path.name, "document_full_path": str(input_path.parent)})
 
         try:
@@ -240,6 +294,9 @@ class DocumentProcessor:
                 self.logger.extra.update({"section": "NA", "task": "Finish", "module": "process_document"})
                 self.logger.debug(f"Document saved: {output_path}")
 
+            return True
+
         except Exception as e:
             self.logger.extra["task"] = "ERROR"
             self.logger.error(f"Failed to process {input_path} with error: {str(e).split(':')[0]}")
+            return False

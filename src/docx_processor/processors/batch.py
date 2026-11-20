@@ -15,28 +15,35 @@ class BatchProcessor:
         self.workers = config.runtime.workers
         self.find_only = config.runtime.find_only
         self.processed_count = 0
+        self.failed_count = 0
         self.start_time = None
 
     def process_all_docx(self) -> None:
         """Process all documents in the source directory synchronously."""
         self.start_time = time.time()
         self.processed_count = 0
+        self.failed_count = 0
 
         for input_path in self._get_document_paths():
             processor = DocumentProcessor(self.config, self.logger)
             relative_path = input_path.relative_to(self.config.runtime.source_dir)
             output_path = self._get_output_path(relative_path)
-            processor.process_document(input_path, output_path)
-            self.processed_count += 1
+            if processor.process_document(input_path, output_path):
+                self.processed_count += 1
+            else:
+                self.failed_count += 1
 
         total_time = time.time() - self.start_time
-        self.logger.info(f"Processing complete. Documents processed: {self.processed_count}")
+        self.logger.info(
+            f"Processing complete. Documents processed: {self.processed_count}, failed: {self.failed_count}"
+        )
         self.logger.info(f"Total processing time: {total_time:.2f} seconds")
 
     async def process_all_docx_async(self) -> None:
         """Process all documents in the source directory asynchronously."""
         self.start_time = time.time()
         self.processed_count = 0
+        self.failed_count = 0
 
         paths = list(self._get_document_paths())
         # Create semaphore to limit concurrent tasks
@@ -56,9 +63,12 @@ class BatchProcessor:
         # Process all tasks concurrently
         completed = await asyncio.gather(*tasks, return_exceptions=True)
         self.processed_count = sum(1 for result in completed if result is True)
+        self.failed_count = len(completed) - self.processed_count
 
         total_time = time.time() - self.start_time
-        self.logger.info(f"Processing complete. Documents processed: {self.processed_count}")
+        self.logger.info(
+            f"Processing complete. Documents processed: {self.processed_count}, failed: {self.failed_count}"
+        )
         self.logger.info(f"Total processing time: {total_time:.2f} seconds")
         self.logger.info(f"Average time per document: {total_time / max(1, self.processed_count):.2f} seconds")
 
@@ -92,8 +102,7 @@ class BatchProcessor:
         try:
             # Create a new processor instance for each document to avoid state sharing
             processor = DocumentProcessor(self.config, task_logger)
-            processor.process_document(input_path, output_path)
-            return True
+            return processor.process_document(input_path, output_path)
         except Exception as e:
             self.logger.error(f"Failed to process {input_path}: {e}")
             return False

@@ -31,6 +31,10 @@ def process_documents(config: AppConfig) -> int:
 
             asyncio.run(processor.process_all_docx_async())
 
+        if processor.failed_count:
+            logger.error(f"Processing finished with {processor.failed_count} failed document(s)")
+            return 1
+
         logger.info("Processing completed successfully")
         return 0
 
@@ -122,18 +126,17 @@ def cli(
 def run(ctx: click.Context):
     """Process documents according to configuration."""
     config = ctx.obj["config"]
-    process_documents(config)
+    ctx.exit(process_documents(config))
 
 
 @cli.command()
 @click.pass_context
 def validate(ctx: click.Context):
-    from config.constants import DEFAULT_LOG_LEVEL
-
     """Validate configuration without processing documents.
     This command performs a dry-run validation of the configuration,
     checking that all paths exist and patterns are valid.
     """
+    from .config.constants import DEFAULT_LOG_LEVEL
 
     config = ctx.obj["config"]
     click.echo("Configuration validation:")

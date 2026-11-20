@@ -7,7 +7,7 @@ url_transforms:
 text_transforms:
   - from: "South\\s?32"
     to: "GM3"
-  - from: "\\sS32\\s"
+  - from: "\\bS32\\b" # \b (word boundary) keeps the surrounding spaces; \s would consume them
     to: "GM3"
 style_transforms:
   - from: "Glencore"
