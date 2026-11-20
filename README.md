@@ -9,6 +9,7 @@
 
 ## Requires
 
+* Python 3.11 or later
 * python-docx 1.2.0 or later
 
 ## Description
