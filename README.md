@@ -24,18 +24,22 @@ Works with the document xml so does not require word to be opened for each file.
 
 ## Functional within:
 
-* Body text
-* Multiple sections of Header and Footer
-* Is Case insensitive
-* Both http and https are captured
+URL and text rules apply in all of these places:
 
-* Will identify and Name chnage styles
+* Body text
+* Headers and footers of every section (including first-page and even-page variants)
+* Tables, including nested tables
+* Text boxes and content controls
+* Hyperlink targets and their visible text
+
+Also:
+
+* URL matching is case insensitive; both http and https are captured
+* URL rules are applied in order, each to the result of the previous one
+* Will identify and rename styles
 * Will identify multiple text patterns within a paragraph. NOTE: A matched paragraph may contain 1 or more instances of
   pattern.
-
-## Pending:
-
-* Tables (This is possible)
+* Log locations show the nearest heading, including custom heading styles (detected by outline level)
 
 ## Note:
 
@@ -69,39 +73,172 @@ pip install git+https://github.com/Commercial-Applications/DocxProcessor.git
 
 ## Examples
 
-### Find matches without modifying (default mode)
+Options go **before** the command (`validate` or `run`). Keep the destination folder **outside** the source folder:
+in `--modify` mode the tool refuses to run otherwise.
 
-bash docx-processor -c transforms.yaml\
---source-dir ./docs\
---dest-dir ./output\
---log-file ./process.log\
-run
+A typical layout:
 
-### Run synchronously with debug logging
+```
+rebrand/
+├── transforms.yml   # your rules (see Sample Config)
+├── docs_in/         # original documents (never modified)
+└── docs_out/        # changed copies are written here in --modify mode
+```
 
-bash docx-processor -c transforms.yaml\
---source-dir ./docs\
---dest-dir ./output\
---log-file ./process.log\
---sync\
---log-level DEBUG\
-run
+### Install
+
+Linux / macOS:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install git+https://github.com/Commercial-Applications/DocxProcessor.git
+```
+
+Windows (PowerShell):
+
+```powershell
+py -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install git+https://github.com/Commercial-Applications/DocxProcessor.git
+```
+
+### 1. Check the configuration first
+
+Linux / macOS:
+
+```bash
+docx-processor -c transforms.yml \
+  --source-dir ./docs_in \
+  --dest-dir ./docs_out \
+  --log-file ./process.log \
+  --modify \
+  validate
+```
+
+Windows (PowerShell; the backtick continues a line):
+
+```powershell
+docx-processor -c transforms.yml `
+  --source-dir .\docs_in `
+  --dest-dir .\docs_out `
+  --log-file .\process.log `
+  --modify `
+  validate
+```
+
+Include `--modify` here if you plan to modify, so the destination-folder checks run too.
+
+### 2. Preview the matches (default: nothing is changed)
+
+Writes every match to `process.csv`. The console shows the same matches at `--log-level INFO`.
+
+Linux / macOS:
+
+```bash
+docx-processor -c transforms.yml \
+  --source-dir ./docs_in \
+  --dest-dir ./docs_out \
+  --log-file ./process.log \
+  --log-level INFO \
+  run
+```
+
+Windows (PowerShell):
+
+```powershell
+docx-processor -c transforms.yml `
+  --source-dir .\docs_in `
+  --dest-dir .\docs_out `
+  --log-file .\process.log `
+  --log-level INFO `
+  run
+```
+
+### 3. Apply the changes
+
+Writes changed copies to `docs_out`, processing 8 documents at a time:
+
+Linux / macOS:
+
+```bash
+docx-processor -c transforms.yml \
+  --source-dir ./docs_in \
+  --dest-dir ./docs_out \
+  --log-file ./process.log \
+  --modify \
+  --workers 8 \
+  run
+```
+
+Windows (PowerShell):
+
+```powershell
+docx-processor -c transforms.yml `
+  --source-dir .\docs_in `
+  --dest-dir .\docs_out `
+  --log-file .\process.log `
+  --modify `
+  --workers 8 `
+  run
+```
+
+Windows (Command Prompt; `^` continues a line):
+
+```bat
+docx-processor -c transforms.yml ^
+  --source-dir docs_in ^
+  --dest-dir docs_out ^
+  --log-file process.log ^
+  --modify ^
+  --workers 8 ^
+  run
+```
+
+### 4. Troubleshoot one document at a time with full detail
+
+`--sync` processes documents one by one; `DEBUG` adds per-paragraph detail and full error tracebacks.
+
+Linux / macOS:
+
+```bash
+docx-processor -c transforms.yml --source-dir ./docs_in --dest-dir ./docs_out \
+  --log-file ./debug.log --sync --log-level DEBUG run
+```
+
+Windows (PowerShell):
+
+```powershell
+docx-processor -c transforms.yml --source-dir .\docs_in --dest-dir .\docs_out `
+  --log-file .\debug.log --sync --log-level DEBUG run
+```
+
+### Exit codes
+
+| Code | Meaning |
+|------|---------|
+| `0`  | Success |
+| `1`  | One or more documents failed (see the log) |
+| `2`  | Configuration or folder problem found before processing; nothing was processed |
+
+Check it with `echo $?` (Linux / macOS) or `$LASTEXITCODE` (PowerShell).
+
+The repository also has ready-made wrapper scripts that preview matches (find-only) with `--workers 10 -v`:
+
+- `run_docxp.ps1` (Windows): uses `config.yml`, `docs_in` and `docs_out` next to the script
+- `run_docxp.sh` (Linux / macOS): uses `config.yaml`, `docs_in` and `docs_out` in the current folder
 
 ### Validate
 
-bash docx-processor -c transforms.yaml\
---source-dir ./docs\
---dest-dir ./output\
---log-file ./process.log\
-validate
+Validates configuration without processing documents and exits non-zero if anything is wrong. It checks:
 
-Validates configuration without processing documents. Performs a dry-run validation checking:
+- Configuration file syntax and structure (unknown keys, rules missing `from`/`to`)
+- Every regular expression and replacement compiles (e.g. unbalanced brackets, bad `\1` group references)
+- Source directory is readable and contains `.docx` files
+- In `--modify` mode: destination is writable and is **not** inside the source directory
+  (outputs would otherwise be processed again on the next run)
 
-- Configuration file syntax
-- Source directory existence
-- Destination directory validity
-- Pattern validity
-- Transform rules
+`run` performs the same checks first and processes nothing if any fail.
 
 Output includes:
 
@@ -110,6 +247,20 @@ Output includes:
 - Worker settings
 - Operation mode
 - URL patterns and replacements
+
+## Use as a library
+
+```python
+from pathlib import Path
+from docx_processor import AppConfig, RuntimeConfig, TransformConfig, process_documents
+
+config = AppConfig(
+    transform=TransformConfig.from_yaml(Path("transforms.yaml")),
+    runtime=RuntimeConfig(source_dir=Path("docs"), destination_dir=Path("output"), log_file=Path("process.log"),
+                          log_level="WARNING", workers=4, sync_mode=False, find_only=True, verbose=0),
+)
+exit_code = process_documents(config)  # 0 = success, 1 = a document failed, 2 = configuration problem
+```
 
 ## Sample Config
 

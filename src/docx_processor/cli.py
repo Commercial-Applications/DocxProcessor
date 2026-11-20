@@ -2,19 +2,35 @@
 Command-line interface for docx-processor.
 """
 
+import sys
 from logging import Logger
 from pathlib import Path
 
 import click
 
-from .config import AppConfig, RuntimeConfig, TransformConfig
+from .config import AppConfig, RuntimeConfig, TransformConfig, preflight
 from .logger import setup_logger
 from .processors import BatchProcessor
 from .version import __version__
 
+EXIT_CONFIG_ERROR = 2
 
-def process_documents(config: AppConfig) -> int:
-    """Process documents based on configuration."""
+
+def process_documents(config: AppConfig, check: bool = True) -> int:
+    """Process documents based on configuration; returns a process exit code.
+
+    Usable as a library entry point: build an AppConfig and call this directly. With ``check``
+    (the default) the pre-flight checks run first and nothing is processed if any fail.
+    """
+    if check:
+        result = preflight(config)
+        for warning in result.warnings:
+            print(f"Warning: {warning}", file=sys.stderr)
+        if not result.ok:
+            for error in result.errors:
+                print(f"Error: {error}", file=sys.stderr)
+            return EXIT_CONFIG_ERROR
+
     try:
         logger: Logger = setup_logger(config)
     except Exception as e:
@@ -136,12 +152,16 @@ def run(ctx: click.Context):
 @click.pass_context
 def validate(ctx: click.Context):
     """Validate configuration without processing documents.
-    This command performs a dry-run validation of the configuration,
-    checking that all paths exist and patterns are valid.
+
+    Loading the configuration already checks its structure and compiles every regular expression
+    (an invalid one stops here with an error). This command then runs the same pre-flight checks
+    as `run`: folders exist and are readable/writable, and in --modify mode the destination is not
+    inside the source. Exits non-zero if any check fails.
     """
     from .config.constants import DEFAULT_LOG_LEVEL
 
     config = ctx.obj["config"]
+    result = preflight(config)
     click.echo("Configuration validation:")
     click.echo(f"  Version: {__version__}")
     click.echo(f"  Source directory: {config.runtime.source_dir}")
@@ -166,6 +186,18 @@ def validate(ctx: click.Context):
     for text in config.transform.text_transforms:
         click.echo(f"from: {text.from_pattern} → to: {text.to_pattern}")
 
+    pattern_count = len(config.transform.url_transforms) + len(config.transform.text_transforms)
+    click.echo("\nChecks:")
+    click.echo(f"  ✓ {pattern_count} regular expression(s) compiled")
+    click.echo(f"  ✓ {result.document_count} .docx file(s) found in source directory")
+    for warning in result.warnings:
+        click.echo(f"  ! Warning: {warning}")
+    for error in result.errors:
+        click.echo(f"  ✗ Error: {error}")
+
+    if not result.ok:
+        click.echo(f"\nConfiguration has {len(result.errors)} problem(s). ✗")
+        ctx.exit(EXIT_CONFIG_ERROR)
     click.echo("\nConfiguration is valid! ✓")
 
 

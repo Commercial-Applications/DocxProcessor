@@ -7,6 +7,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import List, Optional, Tuple
 
+from docx_processor.config import is_within
 from docx_processor.logger import ContextLoggerAdapter
 from .document import DocumentProcessor
 
@@ -118,6 +119,11 @@ class BatchProcessor:
         return logger
 
     def _report(self) -> None:
+        # Summary lines belong to the batch, not to whichever document was processed last.
+        self.logger.extra.update(
+            {"document_name": "", "document_full_path": "", "section": "", "location": "", "table_row": ""}
+        )
+        self.logger.extra.update({"module": "batch", "task": "Summary", "match": "False"})
         total_time = time.time() - self.start_time
         self.logger.info(
             f"Processing complete. Documents processed: {self.processed_count}, failed: {self.failed_count}"
@@ -129,11 +135,13 @@ class BatchProcessor:
         return [(path, self._get_output_path(path.relative_to(source_dir))) for path in self._get_document_paths()]
 
     def _get_document_paths(self):
-        """Get all valid document paths."""
+        """Get all valid document paths, skipping Word temp files and anything in the destination directory."""
+        source, dest = self.config.runtime.source_dir, self.config.runtime.destination_dir
+        dest_inside = is_within(dest, source)  # outputs of earlier runs must not become inputs
         return [
             input_path
-            for input_path in self.config.runtime.source_dir.rglob("*.docx")
-            if not input_path.name.startswith("~$")  # Skip temporary Word files
+            for input_path in source.rglob("*.docx")
+            if not input_path.name.startswith("~$") and not (dest_inside and is_within(input_path, dest))
         ]
 
     def _get_output_path(self, relative_path: Path) -> Path:
