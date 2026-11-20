@@ -1,11 +1,21 @@
+import logging
 import re
-from pathlib import Path
-
 import unicodedata
+from pathlib import Path
+from typing import Iterator, List, Optional, Tuple
+
 from docx import Document
 from docx.opc.constants import RELATIONSHIP_TYPE as RT
+from docx.oxml.ns import qn
+from docx.text.paragraph import Paragraph
 
 from .docx_indexer import DocxIndexer
+
+W_P = qn("w:p")
+W_TBL = qn("w:tbl")
+W_TR = qn("w:tr")
+W_TC = qn("w:tc")
+W_HYPERLINK = qn("w:hyperlink")
 
 
 class DocumentProcessor:
@@ -16,75 +26,111 @@ class DocumentProcessor:
             (re.compile(transform.from_pattern, re.IGNORECASE), transform.to_pattern)
             for transform in self.config.transform.url_transforms
         ]
+        # Normalised once here rather than for every paragraph.
+        self.drop_matches = [
+            unicodedata.normalize("NFKC", pattern.strip()).lower() for pattern in self.config.transform.drop_matches
+        ]
+        # Debug messages below build strings from document text; skip that work unless DEBUG is on.
+        self._debug = bool(self.logger.isEnabledFor(logging.DEBUG))
         self.logger.extra.update(
             {"location": "", "section": "", "document_name": "", "document_full_path": "", "module": __name__}
         )
-        self.current_heading = None
 
-    def _is_in_table(self, paragraph):
-        """Check if the paragraph is inside a table cell."""
-        if not paragraph or not hasattr(paragraph, "_element"):
-            return False
+    # ------------------------------------------------------------------ helpers
 
-        parent = paragraph._element.getparent()
-        depth = 0
-        while parent is not None and depth < 10:  # Add depth limit to prevent infinite loops
-            self.logger.debug(f"Checking parent tag: {parent.tag}")
-            if parent.tag.endswith("tc"):  # tc = table cell
-                return True
-            parent = parent.getparent()
-            depth += 1
-        return False
+    @staticmethod
+    def _iter_paragraphs(container) -> Iterator[Tuple[Paragraph, str]]:
+        """Yield ``(paragraph, table_label)`` for every paragraph in document order, including nested tables.
 
-    def _rel_hyperlinks(self, element: Document, doc_index) -> None:
-        """Process a section of the document for URL modifications."""
-        # Process hyperlinks in relationships
+        ``table_label`` is "" outside tables, otherwise "<table>|<row>"; nested tables are numbered
+        "<outer>.<n>". Walks the XML directly, so each cell is visited once (a horizontally merged
+        cell is a single ``w:tc``), unlike python-docx's ``row.cells`` which repeats merged cells.
+        """
+        parent = getattr(container, "_body", container)  # Document -> its body; header/footer as-is
+
+        def walk_block(element, label: str, table_prefix: str):
+            table_count = 0
+            for child in element.iterchildren():
+                if child.tag == W_P:
+                    yield Paragraph(child, parent), label
+                elif child.tag == W_TBL:
+                    table_count += 1
+                    table_id = f"{table_prefix}.{table_count}" if table_prefix else str(table_count)
+                    for row_no, row in enumerate(child.iterchildren(W_TR), 1):
+                        for cell in row.iterchildren(W_TC):
+                            yield from walk_block(cell, f"{table_id}|{row_no}", table_id)
+
+        yield from walk_block(parent._element, "", "")
+
+    @staticmethod
+    def _is_in_table(paragraph: Optional[Paragraph]) -> bool:
+        """True if the paragraph is inside a table cell."""
+        return paragraph is not None and next(paragraph._p.iterancestors(W_TC), None) is not None
+
+    def _set_location(self, paragraph: Optional[Paragraph], doc_index, in_table: bool) -> None:
+        if in_table:
+            self.logger.extra["location"] = "Table"
+        else:
+            self.logger.extra["location"] = doc_index.find_closest_heading_above(paragraph) or ""
+
+    def _log_match(self, message: str) -> None:
+        self.logger.extra["match"] = "True"
+        self.logger.info(message)
+        self.logger.extra["match"] = "False"
+
+    # ------------------------------------------------------------------ URLs
+
+    def _rel_hyperlinks(self, element, doc_index) -> None:
+        """Rewrite hyperlink targets (relationships) in one part of the document."""
         self.logger.extra.update({"module": "rel_hyperlinks", "task": "rel_URLs"})
+        part = element.part
+        in_body = part is doc_index.doc.part
 
-        if hasattr(element.part, "rels"):
-            for rel_id, rel in element.part.rels.items():
-                if rel.reltype == RT.HYPERLINK:
-                    original_url = rel.target_ref
-                    for pattern, replacement in self.url_patterns:
-                        if pattern.search(original_url):
-                            # rIds are scoped per part; the index only covers the main document body,
-                            # so a header/footer rId must not be looked up there (it could hit a body link).
-                            para = (
-                                doc_index.find_paragraph_by_rId(rel_id) if element.part is doc_index.doc.part else None
-                            )
-                            if para is not None:
-                                self.logger.debug(f"Paragraph:: {para.text}")
-                            if para and self._is_in_table(para):
-                                self.logger.extra["location"] = "Table"
-                                self.logger.extra["match"] = "True"
-                                new_url = pattern.sub(replacement, original_url)
-                                self.logger.info(f"TABLE: {rel.target_ref} -> {new_url}")
-                            else:
-                                closest_heading = doc_index.find_closest_heading_above(para)
-                                self.logger.extra["location"] = closest_heading if closest_heading else ""
-                                self.logger.extra["match"] = "True"
-                                new_url = pattern.sub(replacement, original_url)
-                                self.logger.info(f"{rel.target_ref} -> {new_url}")
+        for rel_id, rel in part.rels.items():
+            if rel.reltype != RT.HYPERLINK:
+                continue
+            original_url = url = rel.target_ref
+            located = in_table = False
+            # Rules are applied in order, each to the result of the previous one.
+            for pattern, replacement in self.url_patterns:
+                if not pattern.search(url):
+                    continue
+                if not located:
+                    # rIds are scoped per part; the index only covers the main document body,
+                    # so a header/footer rId must not be looked up there (it could hit a body link).
+                    para = doc_index.find_paragraph_by_rId(rel_id) if in_body else None
+                    in_table = self._is_in_table(para)
+                    self._set_location(para, doc_index, in_table)
+                    located = True
+                new_url = pattern.sub(replacement, url)
+                self._log_match(f"{'TABLE: ' if in_table else ''}{url} -> {new_url}")
+                url = new_url
+            if url != original_url:
+                rel._target = url
 
-                            self.logger.extra["match"] = "False"
-                            rel._target = new_url
-
-    def _para_hyperlinks(self, element: Document, doc_index) -> None:
+    def _para_hyperlinks(self, element, doc_index) -> None:
+        """Rewrite the visible text of hyperlinks (body and tables) in one part of the document."""
         self.logger.extra.update({"module": "para_hyperlinks", "task": "para_URLs"})
-        for para in element.paragraphs:
+        for para, table_label in self._iter_paragraphs(element):
+            if para._p.find(W_HYPERLINK) is None:  # fast C-level check before python-docx objects
+                continue
             for hyperlink in para.hyperlinks:
-                for runs in hyperlink.runs:
-                    original_url = runs.text
+                for run in hyperlink.runs:
+                    original_text = text = run.text
+                    located = False
                     for pattern, replacement in self.url_patterns:
-                        if pattern.search(original_url):
-                            new_url = pattern.sub(replacement, original_url)
-                            closest_heading = doc_index.find_closest_heading_above(para)
-                            self.logger.extra["location"] = closest_heading if closest_heading else ""
-                            self.logger.extra["match"] = "True"
-                            self.logger.info(f"{runs.text} -> {new_url}")
-                            self.logger.extra["match"] = "False"
-                            runs.text = new_url
-                        # Does Not Modify url
+                        if not pattern.search(text):
+                            continue
+                        if not located:
+                            self.logger.extra["table_row"] = table_label
+                            self._set_location(para, doc_index, bool(table_label))
+                            located = True
+                        new_text = pattern.sub(replacement, text)
+                        self._log_match(f"{text} -> {new_text}")
+                        text = new_text
+                    if text != original_text:
+                        run.text = text
+        self.logger.extra["table_row"] = ""
 
     def transform_urls(self, doc: Document, doc_index) -> None:
         """
@@ -115,6 +161,8 @@ class DocumentProcessor:
                 self._rel_hyperlinks(header_footer, doc_index)  # Type A
                 self._para_hyperlinks(header_footer, doc_index)  # Type B
 
+    # ------------------------------------------------------------------ styles
+
     def transform_styles(self, doc: Document) -> None:
         """Change style names according to configuration."""
         self.logger.extra.update(
@@ -128,110 +176,86 @@ class DocumentProcessor:
             for style in doc.styles:
                 if style.name == transform.from_pattern:
                     style.name = transform.to_pattern
-                    self.logger.extra["match"] = "True"
-                    self.logger.info(
+                    self._log_match(
                         f"Style {transform.from_pattern} found. Renaming: "
                         f"{transform.from_pattern} → {transform.to_pattern}"
                     )
-                    self.logger.extra["match"] = "False"
 
-    def _should_drop_match(self, text):
-        """Check if text matches any drop patterns."""
-        text = unicodedata.normalize("NFKC", text.strip()).lower()
+    # ------------------------------------------------------------------ text
 
-        for pattern in self.config.transform.drop_matches:
-            normalized_pattern = unicodedata.normalize("NFKC", pattern.strip()).lower()
-
-            if normalized_pattern in text:
-                self.logger.debug(f"Dropping match for text: '{text[:50]}...'")
+    def _should_drop_match(self, text: str) -> bool:
+        """Check if text contains any drop_matches phrase (case and Unicode-form insensitive)."""
+        if not self.drop_matches:
+            return False
+        normalized = unicodedata.normalize("NFKC", text.strip()).lower()
+        for pattern in self.drop_matches:
+            if pattern in normalized:
+                if self._debug:
+                    self.logger.debug(f"Dropping match for text: '{normalized[:50]}...'")
                 return True
         return False
 
-    def transform_text(self, element: Document, doc_index, transforms):
-        """Transform text in document according to configured patterns."""
-        self.logger.extra.update(
-            {
-                "section": "Body",
-                "module": "transform_text",
-            }
-        )
+    def transform_text(self, element: Document, doc_index, transforms) -> None:
+        """Find (and in --modify mode replace) text patterns in body and table paragraphs."""
+        self.logger.extra.update({"section": "Body", "module": "transform_text"})
+        patterns = [(re.compile(t.from_pattern), t.to_pattern, t.from_pattern) for t in transforms]
+        modify = not self.config.runtime.find_only
 
-        processed_cells = set()  # Track processed cells by their internal ID
-
-        def process_paragraph(para, cell=None):
-            # Skip if this paragraph is in a cell we've already processed
-            #        if cell and cell._tc in processed_cells:
-            #            return False
-
-            para_text = "".join(run.text for run in para.runs)
-            self.logger.debug(f"Paragraph Text: {para.text}")
-
-            if self._should_drop_match(para_text):
-                return False
-
-            found_match = False
-            for regex in transforms:
-                pattern = re.compile(regex.from_pattern)
-                matches = len(pattern.findall(para_text))
-                if matches > 0:
-                    trunc_para_text = (para_text[:47] + "...") if len(para_text) > 50 else para_text
-
-                    if not found_match:
-                        if para and self._is_in_table(para):
-                            self.logger.extra["location"] = "Table"
-                        else:
-                            closest_heading = doc_index.find_closest_heading_above(para)
-                            self.logger.extra["location"] = closest_heading if closest_heading else ""
-                        found_match = True
-
-                    self.logger.extra["match"] = "True"
-                    self.logger.info(
-                        f"Match: {matches} {'matches' if matches > 1 else 'match'} "
-                        f"for '{regex.from_pattern}' at paragraph: '{trunc_para_text}'"
-                    )
-
-                    if not self.config.runtime.find_only:
-                        replaced = self._replace_in_runs(para.runs, pattern, regex.to_pattern)
-                        para_text = "".join(run.text for run in para.runs)
-                        self.logger.info(f"Replaced {replaced} with '{regex.to_pattern}'")
-
-                    self.logger.extra["match"] = "False"
-
-            return found_match
-
-        # Process paragraphs in document body
-        for para in element.paragraphs:
-            process_paragraph(para)
-
-        # Process paragraphs in tables
-        table_no = 0
-        for table in element.tables:
-            table_no += 1
-            row_no = 0
-            for row in table.rows:
-                row_no += 1
-                for cell in row.cells:
-                    self.logger.extra["table_row"] = f"{table_no}|{row_no}"
-                    # Mark this cell as processed
-                    if cell._tc not in processed_cells:
-                        processed_cells.add(cell._tc)
-                        for para in cell.paragraphs:
-                            self.logger.debug(f"In Tables {cell._tc} {para.text} {cell.text}")
-                            process_paragraph(para, cell)
+        for para, table_label in self._iter_paragraphs(element):
+            self._process_text_paragraph(para, table_label, doc_index, patterns, modify)
 
         self.logger.extra["table_row"] = ""
-        return None
+
+    def _process_text_paragraph(self, para, table_label: str, doc_index, patterns, modify: bool) -> bool:
+        runs = para.runs
+        # Read each run's text once: every run.text access is an XPath query in python-docx.
+        texts = [run.text for run in runs]
+        para_text = "".join(texts)
+        if not para_text:
+            return False
+        if self._debug:
+            self.logger.debug(f"Paragraph Text: {para_text}")
+        if self._should_drop_match(para_text):
+            return False
+
+        found_match = False
+        for pattern, replacement, source in patterns:
+            matches = len(pattern.findall(para_text))
+            if not matches:
+                continue
+            if not found_match:
+                self.logger.extra["table_row"] = table_label
+                self._set_location(para, doc_index, bool(table_label))
+                found_match = True
+
+            trunc_para_text = (para_text[:47] + "...") if len(para_text) > 50 else para_text
+            self.logger.extra["match"] = "True"
+            self.logger.info(
+                f"Match: {matches} {'matches' if matches > 1 else 'match'} "
+                f"for '{source}' at paragraph: '{trunc_para_text}'"
+            )
+            if modify:
+                replaced = self._replace_in_runs(runs, pattern, replacement, texts)
+                para_text = "".join(texts)
+                self.logger.info(f"Replaced {replaced} with '{replacement}'")
+            self.logger.extra["match"] = "False"
+
+        return found_match
 
     @staticmethod
-    def _replace_in_runs(runs, pattern, replacement) -> int:
+    def _replace_in_runs(runs, pattern, replacement, texts: Optional[List[str]] = None) -> int:
         """Replace regex matches in a paragraph's runs, preserving run formatting where possible.
 
         A match may span several runs (Word splits text on formatting, spell-check, edits, ...).
         The replacement text is placed in the run where the match starts, keeping that run's
         formatting, and the matched text is removed from the following runs. Returns the
         number of replacements made.
+
+        ``texts`` is an optional cache of the runs' current text; it is kept up to date in place.
         """
-        full_text = "".join(run.text for run in runs)
+        if texts is None:
+            texts = [run.text for run in runs]
+        full_text = "".join(texts)
         matches = [m for m in pattern.finditer(full_text) if m.end() > m.start()]
 
         # Work backwards so the offsets of earlier matches stay valid as text changes.
@@ -240,53 +264,55 @@ class DocumentProcessor:
             new_text = match.expand(replacement)
 
             run_start = 0
-            for run in runs:
-                text = run.text
+            for i, run in enumerate(runs):
+                text = texts[i]
                 run_end = run_start + len(text)
                 if run_end > start and run_start < end:
                     local_start = max(start - run_start, 0)
                     local_end = min(end - run_start, len(text))
                     if run_start <= start:
                         # First run of the match receives the replacement text.
-                        run.text = text[:local_start] + new_text + text[local_end:]
+                        updated = text[:local_start] + new_text + text[local_end:]
                     else:
-                        run.text = text[local_end:]
+                        updated = text[local_end:]
+                    run.text = updated
+                    texts[i] = updated
                 run_start = run_end
                 if run_start >= end:
                     break
 
         return len(matches)
 
+    # ------------------------------------------------------------------ entry point
+
     def process_document(self, input_path: Path, output_path: Path) -> bool:
         """Process a single document. Returns True on success, False if it failed."""
         self.logger.extra.update({"document_name": input_path.name, "document_full_path": str(input_path.parent)})
+        transforms = self.config.transform
 
         try:
             doc = Document(str(input_path))
             self.logger.extra.update({"section": "NA", "module": "process_document"})
 
-            doc_index = DocxIndexer(doc, self.logger)
-            self.logger.debug("-- Index Document --")
-            self.logger.debug("-- Start Processing --")
+            # The index is only needed to locate URL and text matches.
+            doc_index = (
+                DocxIndexer(doc, self.logger) if (transforms.url_transforms or transforms.text_transforms) else None
+            )
 
-            # Check for non standard Hyperlinks and Log
-            # self.logger.debug("Starting Non-Rel-URL Identification")
-            # non_rel_hyperlinks(self.logger, input_path)
-            # TODO Several of these have to itterate Paragraphs so makes sense to do them in one block
-            if self.config.transform.url_transforms:
+            if transforms.url_transforms:
                 self.logger.extra["task"] = "hyperlinks"
                 self.logger.debug("Starting URL Identification")
                 self.transform_urls(doc, doc_index)
 
-            if self.config.transform.style_transforms:
+            if transforms.style_transforms:
                 self.logger.extra["task"] = "Styles"
                 self.logger.debug("Starting Style Identification")
                 self.transform_styles(doc)
 
-            if self.config.transform.text_transforms:
+            if transforms.text_transforms:
                 self.logger.extra["task"] = "Text"
                 self.logger.debug("Starting Text Identification")
-                self.transform_text(doc, doc_index, self.config.transform.text_transforms)
+                self.transform_text(doc, doc_index, transforms.text_transforms)
 
             # Save The Document
             if not self.config.runtime.find_only:

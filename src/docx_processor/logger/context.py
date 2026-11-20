@@ -2,28 +2,18 @@ import csv
 import logging
 from io import StringIO
 
+# Context fields, in the column order of DocxLogger.CSV_HEADERS (after Timestamp and Level).
+CONTEXT_FIELDS = ("document_full_path", "document_name", "section", "module", "location", "table_row", "task", "match")
+
 
 class ContextLoggerAdapter(logging.LoggerAdapter):
-    def _escape_csv(self, text):
-        if not text:
-            return ""
-        output = StringIO()
-        writer = csv.writer(output, quoting=csv.QUOTE_MINIMAL)
-        writer.writerow([str(text)])
-        return output.getvalue().rstrip("\r\n")
+    """Prefix each message with the current document context, formatted as CSV fields."""
 
     def process(self, msg, kwargs):
         ctx = self.extra
-        # Escape each field
-        fields = [
-            self._escape_csv(ctx.get("document_full_path", "unknown")),
-            self._escape_csv(ctx.get("document_name", "unknown")),
-            self._escape_csv(ctx.get("section", "unknown")),
-            self._escape_csv(ctx.get("module", "unknown")),
-            self._escape_csv(ctx.get("location", "unknown")),
-            self._escape_csv(ctx.get("table_row", "unknown")),
-            self._escape_csv(ctx.get("task", "unknown")),
-            self._escape_csv(ctx.get("match", "unknown")),
-            self._escape_csv(msg),
-        ]
-        return (",".join(fields), kwargs)
+        fields = [ctx.get(name, "unknown") for name in CONTEXT_FIELDS]
+        fields.append(msg)
+        # One CSV writer per log line (previously one per field); falsy values become empty fields.
+        output = StringIO()
+        csv.writer(output, quoting=csv.QUOTE_MINIMAL).writerow([str(f) if f else "" for f in fields])
+        return output.getvalue().rstrip("\r\n"), kwargs

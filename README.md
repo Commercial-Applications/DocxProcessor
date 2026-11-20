@@ -61,8 +61,8 @@ pip install git+https://github.com/Commercial-Applications/DocxProcessor.git
 | `--dest-dir PATH`      | Path    | Output directory for processed documents                   | *Required*    |
 | `--log-file PATH`      | Path    | Log file path (written as CSV; extension becomes `.csv`)   | *Required*    |
 | `--log-level`          | Choice  | Logging level (`DEBUG`\|`INFO`\|`WARNING`\|`ERROR`)        | `WARNING`     |
-| `--workers`            | Integer | Number of worker threads for parallel processing (min: 1)  | `4`           |
-| `--sync/--async`       | Flag    | Run in synchronous mode instead of async                   | `--async`     |
+| `--workers`            | Integer | Number of worker processes for `--async` mode (min: 1)     | `4`           |
+| `--sync/--async`       | Flag    | `--sync`: one document at a time; `--async`: in parallel   | `--async`     |
 | `--find-only/--modify` | Flag    | Only find and log matches without modifying documents      | `--find-only` |
 | `-v, --verbose`        | Count   | Increase output verbosity (can be used multiple times)     | `0`           |
 | `--help`               | Flag    | Show help message and exit                                 |               |
