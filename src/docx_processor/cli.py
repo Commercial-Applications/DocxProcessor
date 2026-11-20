@@ -2,7 +2,6 @@
 Command-line interface for docx-processor.
 """
 
-import asyncio
 from logging import Logger
 from pathlib import Path
 
@@ -28,8 +27,7 @@ def process_documents(config: AppConfig) -> int:
         if config.runtime.sync_mode:
             processor.process_all_docx()
         else:
-
-            asyncio.run(processor.process_all_docx_async())
+            processor.process_all_docx_parallel()
 
         if processor.failed_count:
             logger.error(f"Processing finished with {processor.failed_count} failed document(s)")
@@ -72,10 +70,15 @@ def process_documents(config: AppConfig) -> int:
     "--workers",
     type=click.IntRange(min=1),
     default=4,
-    help="Number of worker threads for async processing",
+    help="Number of worker processes for parallel (--async) processing",
     show_default=True,
 )
-@click.option("--sync/--async", "sync_mode", default=False, help="Use synchronous processing instead of async")
+@click.option(
+    "--sync/--async",
+    "sync_mode",
+    default=False,
+    help="--sync processes one document at a time; --async (default) uses parallel worker processes",
+)
 @click.option(
     "--find-only/--modify", default=True, help="Only find and log matches without modifying them", show_default=True
 )
@@ -147,7 +150,10 @@ def validate(ctx: click.Context):
     click.echo(f"  Log level (Default): {config.runtime.log_level} (default: {DEFAULT_LOG_LEVEL})")
     if config.runtime.verbose:
         click.echo(f"  Log level (run): {config.runtime.verbose}")
-    click.echo(f"  Processing mode: {'sync' if config.runtime.sync_mode else 'async'}")
+    click.echo(
+        "  Processing mode: "
+        + ("sync (one document at a time)" if config.runtime.sync_mode else "async (parallel worker processes)")
+    )
     click.echo(f"  Workers: {config.runtime.workers}")
     click.echo(f"  Operation: {'find-only' if config.runtime.find_only else 'modify'}")
     click.echo("\nURL patterns:")

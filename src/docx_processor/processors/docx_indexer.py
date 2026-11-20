@@ -1,96 +1,75 @@
-from typing import Dict, List, Optional, Tuple
+from bisect import bisect_left
+from typing import Dict, List, Optional
 
 from docx import Document
+from docx.enum.style import WD_STYLE_TYPE
+from docx.oxml.ns import qn
 from docx.text.paragraph import Paragraph
+
+W_P = qn("w:p")
+W_HYPERLINK = qn("w:hyperlink")
+R_ID = qn("r:id")
 
 
 class DocxIndexer:
+    """Index a document's body paragraphs for fast hyperlink and heading lookups.
+
+    Paragraphs are indexed by their XML element in document order (tables included), in a single
+    pass over the XML. This avoids python-docx's ``Paragraph.style`` property, whose lookup cost
+    grows with the number of relationships (every hyperlink is one), and works for documents
+    without Word's ``w14:paraId`` attributes.
+
+    The element objects are held as dict keys, which keeps their lxml proxies alive; lxml then
+    returns those same objects for later lookups, so identity-based lookups stay valid.
+    """
+
     def __init__(self, doc: Document, logger):
         self.doc = doc
+        self.logging = logger
         self.rId_to_paragraph: Dict[str, Paragraph] = {}
-        self.paragraph_index: Dict[Paragraph, int] = {}
-        self.heading_paragraphs: List[Tuple[Paragraph, int]] = []
-        self.logging = logger  # Must be set before indexing, which may log warnings
+        self._position: Dict[object, int] = {}
+        self._heading_positions: List[int] = []
+        self._heading_labels: List[str] = []
         self._build_index()
 
-    def _get_paragraph_id(self, para: Paragraph) -> str:
-        """
-        Gets the unique paragraph ID from Word's XML structure.
-        Falls back to alternative identification if not available.
-        """
-
-        # Check if paragraph is None or doesn't have _element
-        if para is None or not hasattr(para, "_element") or para._element is None:
-            self.logging.warning(f"**Invalid Paragraph Returned: {para}")
-            return f"invalid_paragraph_{id(para)}"
-
-        # Try to get the w14:paraId first
-        para_id = para._element.get("{http://schemas.microsoft.com/office/word/2010/wordml}paraId")
-        if para_id:
-            return para_id
-
-        # Fallback to w:id if available
-        w_id = para._element.get("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}id")
-        if w_id:
-            return w_id
-
-        # Last resort: use combination of properties
-        return f"{para.text}|{para.style.name if para.style else ''}|{id(para._element)}"
-
-    # TODO Simplify this method (flake8)
-    def _build_index(self):  # noqa: C901
-        for i, para in enumerate(self.doc.paragraphs):
-            para_id = self._get_paragraph_id(para)
-            self.paragraph_index[para_id] = i
-
-            if para.style and para.style.name.startswith("Heading"):
+    def _heading_levels(self) -> Dict[str, int]:
+        """Map paragraph style id (as stored on each paragraph, e.g. "Heading1") to heading level."""
+        levels: Dict[str, int] = {}
+        for style in self.doc.styles:
+            name = style.name or ""
+            if style.type == WD_STYLE_TYPE.PARAGRAPH and name.startswith("Heading"):
                 try:
-                    heading_level = int(para.style.name[7:])
+                    levels[style.style_id] = int(name[7:])
                 except ValueError:
-                    heading_level = 0
-                self.heading_paragraphs.append((para, heading_level))
+                    levels[style.style_id] = 0
+        return levels
 
-            for element in para._element.iter():
-                if element.tag.endswith("hyperlink"):
-                    rId_value = element.get(f'{{{element.nsmap["r"]}}}id')
-                    if rId_value:
-                        self.rId_to_paragraph[rId_value] = para
-        # Index paragraphs in tables
-        if hasattr(self.doc, "tables"):
-            for table in self.doc.tables:
-                for row in table.rows:
-                    for cell in row.cells:
-                        for para in cell.paragraphs:
-                            # Add table paragraphs to the index
-                            para_id = self._get_paragraph_id(para)
-                            # Use a high index to ensure they come after regular paragraphs
-                            self.paragraph_index[para_id] = len(self.doc.paragraphs) + len(self.paragraph_index)
+    def _build_index(self) -> None:
+        heading_levels = self._heading_levels()
+        parent = self.doc._body
+        for position, p in enumerate(self.doc.element.body.iter(W_P)):
+            self._position[p] = position
 
-                            for element in para._element.iter():
-                                if element.tag.endswith("hyperlink"):
-                                    rId_value = element.get(f'{{{element.nsmap["r"]}}}id')
-                                    if rId_value:
-                                        self.rId_to_paragraph[rId_value] = para
+            level = heading_levels.get(p.style)
+            if level is not None:
+                self._heading_positions.append(position)
+                self._heading_labels.append(f"H{level} {Paragraph(p, parent).text}")
+
+            for link in p.iter(W_HYPERLINK):
+                r_id = link.get(R_ID)
+                if r_id:
+                    self.rId_to_paragraph[r_id] = Paragraph(p, parent)
 
     def find_paragraph_by_rId(self, rId: str) -> Optional[Paragraph]:
-        """
-        Retrieves a Paragraph object by its rId from the index.
-        """
+        """Return the paragraph containing the hyperlink with relationship id ``rId``."""
         return self.rId_to_paragraph.get(rId)
 
-    def find_closest_heading_above(self, paragraph: Paragraph) -> Optional[str]:
-        """
-        Finds the closest heading paragraph above a given paragraph using the paragraph ID.
-        """
-        para_id = self._get_paragraph_id(paragraph)
-        paragraph_index = self.paragraph_index.get(para_id, -1)
-
-        if paragraph_index == -1:
+    def find_closest_heading_above(self, paragraph: Optional[Paragraph]) -> Optional[str]:
+        """Return the nearest heading above ``paragraph`` as "H<level> <text>", or None."""
+        if paragraph is None:
             return None
-
-        for heading, level in reversed(self.heading_paragraphs):
-            heading_id = self._get_paragraph_id(heading)
-            if self.paragraph_index.get(heading_id, -1) < paragraph_index:
-                return f"H{level} {heading.text}"
-
-        return None
+        position = self._position.get(paragraph._p)
+        if position is None:
+            return None
+        k = bisect_left(self._heading_positions, position) - 1
+        return self._heading_labels[k] if k >= 0 else None

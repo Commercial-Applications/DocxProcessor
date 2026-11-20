@@ -1,133 +1,88 @@
-# %%
-from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
 from docx import Document
-from docx.text.paragraph import Paragraph
+from docx.opc.constants import RELATIONSHIP_TYPE as RT
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
 
 from docx_processor.processors.docx_indexer import DocxIndexer
 
-
-@pytest.fixture
-def mock_logger():
-    logger = Mock()
-    logger.logger = Mock()  # Add this for ContextLoggerAdapter compatibility
-    return logger
+W14_PARA_ID = "{http://schemas.microsoft.com/office/word/2010/wordml}paraId"
 
 
-@pytest.fixture
-def mock_document():
-    doc = Mock(spec=Document)
-    doc.paragraphs = []
-    return doc
-
-
-@pytest.fixture
-def mock_paragraph():
-    para = Mock(spec=Paragraph)
-    para._element = Mock()
-    para._element.get.return_value = None
-    para._element.iter.return_value = []
-    para.text = "Test paragraph"
-    para.style = Mock()
-    para.style.name = "Normal"
-    return para
+def add_hyperlink(paragraph, url, text):
+    """Append an external hyperlink to a paragraph; returns its relationship id."""
+    r_id = paragraph.part.relate_to(url, RT.HYPERLINK, is_external=True)
+    link = OxmlElement("w:hyperlink")
+    link.set(qn("r:id"), r_id)
+    run = OxmlElement("w:r")
+    t = OxmlElement("w:t")
+    t.text = text
+    run.append(t)
+    link.append(run)
+    paragraph._p.append(link)
+    return r_id
 
 
 @pytest.fixture
-def test_doc_path():
-    return Path("tests/data/test_document.docx")
+def doc():
+    d = Document()
+    d.add_paragraph("Intro before any heading")  # 0
+    d.add_heading("Chapter One", level=1)  # 1
+    d.add_paragraph("Body under chapter one")  # 2
+    d.add_heading("Section 1.1", level=2)  # 3
+    link_para = d.add_paragraph("See ")  # 4
+    d.link_rid = add_hyperlink(link_para, "https://example.com/a", "link")
+    d.add_table(rows=1, cols=1).cell(0, 0).text = "In table"
+    d.add_heading("Chapter Two", level=1)  # 5
+    d.add_paragraph("Body under chapter two")  # 6
+    return d
 
 
-def test_get_paragraph_id_with_para_id(mock_logger, mock_document, mock_paragraph):
-    mock_document.paragraphs = []
-    indexer = DocxIndexer(mock_document, mock_logger)
-    mock_paragraph._element.get.return_value = "test-id-123"
-
-    result = indexer._get_paragraph_id(mock_paragraph)
-
-    assert result == "test-id-123"
-    mock_paragraph._element.get.assert_called_with("{http://schemas.microsoft.com/office/word/2010/wordml}paraId")
+@pytest.fixture
+def logger():
+    return Mock()
 
 
-def test_get_paragraph_id_fallback_to_w_id(mock_logger, mock_document, mock_paragraph):
-    mock_document.paragraphs = []
-    mock_paragraph._element.get.side_effect = [None, "w-id-456"]
-    indexer = DocxIndexer(mock_document, mock_logger)
-    result = indexer._get_paragraph_id(mock_paragraph)
-
-    assert result == "w-id-456"
-    assert mock_paragraph._element.get.call_count == 2
+def test_closest_heading_levels_and_text(doc, logger):
+    index = DocxIndexer(doc, logger)
+    paras = doc.paragraphs
+    assert index.find_closest_heading_above(paras[2]) == "H1 Chapter One"
+    assert index.find_closest_heading_above(paras[4]) == "H2 Section 1.1"
+    assert index.find_closest_heading_above(paras[6]) == "H1 Chapter Two"
 
 
-def test_get_paragraph_id_last_resort(mock_logger, mock_document, mock_paragraph):
-    mock_document.paragraphs = []
-    mock_paragraph._element.get.return_value = None
-    mock_paragraph.style.name = "Heading 1"
-
-    indexer = DocxIndexer(mock_document, mock_logger)
-    result = indexer._get_paragraph_id(mock_paragraph)
-
-    assert "Test paragraph|Heading 1|" in result
+def test_no_heading_before_first_heading(doc, logger):
+    assert DocxIndexer(doc, logger).find_closest_heading_above(doc.paragraphs[0]) is None
 
 
-def test_get_paragraph_id_none_paragraph(mock_logger, mock_document):
-    mock_document.paragraphs = []
-    indexer = DocxIndexer(mock_document, mock_logger)
-
-    result = indexer._get_paragraph_id(None)
-
-    assert "invalid_paragraph_" in result
-    mock_logger.warning.assert_called_once()
+def test_heading_returns_previous_heading_not_itself(doc, logger):
+    assert DocxIndexer(doc, logger).find_closest_heading_above(doc.paragraphs[3]) == "H1 Chapter One"
 
 
-def test_build_index(mock_logger, mock_document, mock_paragraph):
-    mock_document.paragraphs = [mock_paragraph]
-    mock_paragraph._element.get.return_value = "test-id-123"
-    mock_paragraph.style.name = "Heading 1"
-    mock_paragraph._element.iter.return_value = []
-    indexer = DocxIndexer(mock_document, mock_logger)
-
-    assert len(indexer.paragraph_index) == 1
-    assert len(indexer.heading_paragraphs) == 1
-    assert indexer.heading_paragraphs[0][1] == 1
+def test_table_paragraph_gets_heading_above_the_table(doc, logger):
+    cell_para = doc.tables[0].cell(0, 0).paragraphs[0]
+    assert DocxIndexer(doc, logger).find_closest_heading_above(cell_para) == "H2 Section 1.1"
 
 
-def test_find_closest_heading_above(mock_logger, mock_document):
-    heading = Mock(spec=Paragraph)
-    heading._element = Mock()
-    heading._element.get.return_value = "heading-id"
-    heading._element.iter.return_value = []
-    heading.text = "Test Heading"
-    heading.style = Mock()
-    heading.style.name = "Heading 1"
-
-    content = Mock(spec=Paragraph)
-    content._element = Mock()
-    content._element.get.return_value = "content-id"
-    content._element.iter.return_value = []
-    content.style = Mock()
-    content.style.name = "Normal"
-
-    mock_document.paragraphs = [heading, content]
-    indexer = DocxIndexer(mock_document, mock_logger)
-
-    result = indexer.find_closest_heading_above(content)
-
-    assert result == "H1 Test Heading"
+def test_lookups_work_without_word_paragraph_ids(doc, logger):
+    """Regression: documents not saved by Word have no w14:paraId; lookups must still be stable."""
+    assert not any(p._p.get(W14_PARA_ID) for p in doc.paragraphs)
+    index = DocxIndexer(doc, logger)
+    # Fresh Paragraph objects on every access must still resolve, repeatedly.
+    for _ in range(3):
+        assert index.find_closest_heading_above(doc.paragraphs[2]) == "H1 Chapter One"
 
 
-def test_find_paragraph_by_rId(mock_logger, mock_document, mock_paragraph):
-    mock_document.paragraphs = [mock_paragraph]
+def test_find_paragraph_by_rid(doc, logger):
+    index = DocxIndexer(doc, logger)
+    assert index.find_paragraph_by_rId(doc.link_rid)._p is doc.paragraphs[4]._p
+    assert index.find_paragraph_by_rId("rId-missing") is None
 
-    mock_element = Mock()
-    mock_element.tag = "hyperlink"
-    mock_element.nsmap = {"r": "test-namespace"}
-    mock_element.get.return_value = "test-rid"
-    mock_paragraph._element.iter.return_value = [mock_element]
 
-    indexer = DocxIndexer(mock_document, mock_logger)
-    result = indexer.find_paragraph_by_rId("test-rid")
-
-    assert result == mock_paragraph
+def test_unknown_or_missing_paragraph_returns_none(doc, logger):
+    index = DocxIndexer(doc, logger)
+    other = Document().add_paragraph("from another document")
+    assert index.find_closest_heading_above(other) is None
+    assert index.find_closest_heading_above(None) is None

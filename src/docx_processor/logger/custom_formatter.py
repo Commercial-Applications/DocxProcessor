@@ -21,10 +21,15 @@ class CustomFormatter(logging.Formatter):
         logging.CRITICAL: bold_red + LOG_FORMAT + reset,
     }
 
+    def __init__(self):
+        super().__init__(self.LOG_FORMAT, datefmt=self.DATE_FORMAT)
+        # Build one formatter per level up front instead of a new one for every record.
+        self._formatters = {
+            level: logging.Formatter(fmt, datefmt=self.DATE_FORMAT) for level, fmt in self.FORMATS.items()
+        }
+
     def format(self, record):
         if not hasattr(record, "location"):
             record.location = "No Heading"
-
-        log_fmt = self.FORMATS.get(record.levelno)
-        formatter = logging.Formatter(log_fmt, datefmt=self.DATE_FORMAT)
-        return formatter.format(record)
+        formatter = self._formatters.get(record.levelno)
+        return formatter.format(record) if formatter else super().format(record)
