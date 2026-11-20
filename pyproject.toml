@@ -7,7 +7,7 @@ name = "docx-processor"
 dynamic = ["version"]
 description = "A tool for processing and modifying Word DOCX files"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 license = { file = "LICENSE" }
 authors = [
     { name = "Sean Smith", email = "sean.smith@comapps.net" }
@@ -16,19 +16,30 @@ urls = { repository = "https://github.com/Commercial-Applications/DocxProcessor"
 
 dependencies = [
     "python-docx>=1.2.0",
-    "lxml>=4.9.3",
-    "click>=8.1.0",
-    "pyYAML>=6.0.1"
+    "lxml>=6.1.0", # CVE-2026-41066 (XXE) fixed in 6.1.0
+    "click>=8.1.8",
+    "pyYAML>=6.0.3"
 ]
 
 [project.optional-dependencies]
+test = [
+    "pytest>=9.0.3", # CVE-2025-71176 fixed in 9.0.3
+    "pytest-asyncio>=1.2.0",
+    "pytest-cov>=7.1.0",
+    "faker>=37.12.0",
+]
+lint = [
+    "black==26.10.1", # Pinned so local formatting matches CI exactly; Dependabot bumps it
+    "flake8>=7.5.0",
+]
+# Everything for local development: test + lint (keep in sync with the two lists above).
 dev = [
-    "pytest>=7.0.0",
-    "pytest-asyncio>=0.21.0",
-    "pytest-cov>=4.1.0",
-    "black>=23.0.0",
-    "flake8>=6.0.0",
-    "faker"
+    "pytest>=9.0.3",
+    "pytest-asyncio>=1.2.0",
+    "pytest-cov>=7.1.0",
+    "faker>=37.12.0",
+    "black==26.10.1",
+    "flake8>=7.5.0",
 ]
 
 [tool.hatch.version]
@@ -44,7 +55,7 @@ extend-ignore = ['E203']
 
 [tool.black]
 line-length = 120
-target-version = ["py39"]
+target-version = ["py311"]
 include = '\.pyi?$'
 
 [project.scripts]
