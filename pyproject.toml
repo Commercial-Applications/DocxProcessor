@@ -7,7 +7,7 @@ name = "docx-processor"
 dynamic = ["version"]
 description = "A tool for processing and modifying Word DOCX files"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 license = { file = "LICENSE" }
 authors = [
     { name = "Sean Smith", email = "sean.smith@comapps.net" }
@@ -45,7 +45,7 @@ extend-ignore = ['E203']
 
 [tool.black]
 line-length = 120
-target-version = ["py38"]
+target-version = ["py39"]
 include = '\.pyi?$'
 
 [project.scripts]
