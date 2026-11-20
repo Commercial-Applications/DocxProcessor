@@ -27,10 +27,11 @@ class DocxLogger:
             # Change extension to .csv
             log_file = log_file.with_suffix(".csv")
 
-        # Write headers if file doesn't exist or is empty
-        if not log_file.exists() or log_file.stat().st_size == 0:
-            log_file.write_text(self.CSV_HEADERS, encoding="utf-8")
+            # Write headers if file doesn't exist or is empty
+            if not log_file.exists() or log_file.stat().st_size == 0:
+                log_file.write_text(self.CSV_HEADERS, encoding="utf-8")
 
+            # Always attach the file handler so later runs append to an existing log
             file_handler = logging.FileHandler(log_file, mode="a", encoding="utf-8")
             file_handler.setFormatter(
                 logging.Formatter("%(asctime)s,%(levelname)s,%(message)s", datefmt="%Y-%m-%d %H:%M:%S")

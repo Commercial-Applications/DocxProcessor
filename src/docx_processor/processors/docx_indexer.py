@@ -10,8 +10,8 @@ class DocxIndexer:
         self.rId_to_paragraph: Dict[str, Paragraph] = {}
         self.paragraph_index: Dict[Paragraph, int] = {}
         self.heading_paragraphs: List[Tuple[Paragraph, int]] = []
+        self.logging = logger  # Must be set before indexing, which may log warnings
         self._build_index()
-        self.logging = logger
 
     def _get_paragraph_id(self, para: Paragraph) -> str:
         """

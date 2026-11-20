@@ -9,12 +9,15 @@
 
 ## Requires
 
-* python-dox
+* python-docx 1.2.0 or later
 
 ## Description
 
 Will modify Embedded URL's that match HTTPS? pattern and replace with [regex]
 urls that do not match pattern are not changed.
+
+Text that matches a `text_transforms` pattern is replaced in `--modify` mode (and only logged in `--find-only` mode).
+Paragraphs containing any `drop_matches` phrase are skipped.
 
 Works with the document xml so does not require word to be opened for each file.
 
@@ -55,8 +58,8 @@ pip install git+https://github.com/Commercial-Applications/DocxProcessor.git
 | `-c, --config PATH`    | Path    | Path to YAML configuration file containing transform rules | *Required*    |
 | `--source-dir PATH`    | Path    | Directory containing Word documents to process             | *Required*    |
 | `--dest-dir PATH`      | Path    | Output directory for processed documents                   | *Required*    |
-| `--log-file PATH`      | Path    | Path where log file will be created                        | *Required*    |
-| `--log-level`          | Choice  | Logging level (`DEBUG`\|`INFO`\|`WARNING`\|`ERROR`)        | `INFO`        |
+| `--log-file PATH`      | Path    | Log file path (written as CSV; extension becomes `.csv`)   | *Required*    |
+| `--log-level`          | Choice  | Logging level (`DEBUG`\|`INFO`\|`WARNING`\|`ERROR`)        | `WARNING`     |
 | `--workers`            | Integer | Number of worker threads for parallel processing (min: 1)  | `4`           |
 | `--sync/--async`       | Flag    | Run in synchronous mode instead of async                   | `--async`     |
 | `--find-only/--modify` | Flag    | Only find and log matches without modifying documents      | `--find-only` |
@@ -118,11 +121,13 @@ url_transforms:
 text_transforms:
   - from: "South\\s?32"
     to: "GM3"
-  - from: "\\sS32\\s"
+  - from: "\\bS32\\b" # use \b (word boundary), \s would also replace the surrounding spaces
     to: "GM3"
 style_transforms:
   - from: "Glencore"
-    to: "GM3"`
+    to: "GM3"
+drop_matches: # paragraphs containing any of these phrases are skipped (e.g. document change logs)
+  - "Updated South32 to GM3 branding"
 ```
 
 ## Notes
