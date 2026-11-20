@@ -1,0 +1,37 @@
+name: Security Check
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  schedule:
+    - cron: "0 3 * * 1" # Weekly, Monday 03:00 UTC: catches newly published vulnerabilities
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  osv-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      # OSV-Scanner reads lock files, not pyproject.toml, so resolve the dependencies first.
+      - name: Generate requirements.txt
+        run: |
+          pip install pip-tools
+          pip-compile pyproject.toml --extra dev --strip-extras --output-file=requirements.txt
+
+      # Fails the job if any dependency has a known vulnerability.
+      - name: Run OSV-Scanner
+        uses: google/osv-scanner-action/osv-scanner-action@v2.7.1
+        with:
+          scan-args: |-
+            --lockfile=requirements.txt

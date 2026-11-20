@@ -2,35 +2,32 @@ name: DocxProcessor CI
 
 on:
   push:
+    branches: [ master ]
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
 
 permissions:
   contents: read
-  security-events: write
-  actions: read  # Add this permission
+
+# Cancel an in-progress run when a newer commit is pushed to the same branch/PR.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build:
+  # Formatting and lint only need to run once, not per Python version.
+  lint:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: [ "3.9", "3.10", "3.11", "3.12" ]
-
     steps:
-      - uses: actions/checkout@v3
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Cache pip packages
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
 
       - name: Install dependencies
         run: |
@@ -38,47 +35,32 @@ jobs:
           pip install -e ".[dev]"
 
       - name: Check formatting with black
-        run: |
-          black --check src/ tests
+        run: black --check src/ tests/
 
       - name: Lint with flake8
+        run: flake8 src/ tests/
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false # Report every Python version, not just the first failure
+      matrix:
+        python-version: [ "3.9", "3.10", "3.11", "3.12", "3.13", "3.14", "3.15" ]
+
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install dependencies
         run: |
-          flake8 src/ tests/
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
 
       - name: Test with pytest
-        run: |
-          cd $GITHUB_WORKSPACE/tests
-          pytest .
-
-      - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v3
-        with:
-          file: ./coverage.xml
-
-  security:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.12"
-
-      - name: Generate requirements.txt
-        run: |
-          pip install pip-tools
-          pip-compile pyproject.toml --output-file=requirements.txt
-
-      # OSV Scanner Script gives Errors when run unrelated to security vunrabilities
-      - name: Run OSV scanner
-        id: scan
-        uses: google/osv-scanner/actions/scanner@main
-        continue-on-error: true # This allows the step to continue even if the shell script has errors
-
-      # If it exits with a 0 (no Issues) ignore the errors and return a positive result.
-      - name: Mark step as successful
-        if: success() || failure()
-        run: exit 0
-
-
+        working-directory: tests
+        run: pytest . --cov=docx_processor --cov-report=term-missing
